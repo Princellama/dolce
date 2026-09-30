@@ -190,6 +190,20 @@ const PATCHES = [
     key: '2026-09-29-report-9pm',
     sql: `UPDATE stays SET report_time = '21:00' WHERE report_time = '20:00'`,
   },
+  {
+    key: '2026-09-29-milli-owner',
+    sql: `DO $$
+      DECLARE sid INT; uid INT;
+      BEGIN
+        SELECT id INTO sid FROM stays WHERE name = 'Milli & Reggie''s' ORDER BY id LIMIT 1;
+        IF sid IS NULL THEN RETURN; END IF;
+        INSERT INTO users (email, name) VALUES ('sosillymilli@gmail.com', 'Milli Lumanta')
+          ON CONFLICT (email) DO UPDATE SET name = COALESCE(NULLIF(users.name, ''), 'Milli Lumanta') RETURNING id INTO uid;
+        INSERT INTO members (stay_id, user_id, role, morning_email, evening_report, phone)
+          VALUES (sid, uid, 'owner', true, true, '808-722-4369')
+          ON CONFLICT (stay_id, user_id) DO UPDATE SET role = 'owner', morning_email = true, evening_report = true, phone = '808-722-4369';
+      END $$`,
+  },
 ];
 
 async function migrate() {
