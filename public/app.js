@@ -6,6 +6,7 @@
 const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const lines = (s) => String(s || '').split('\n').map((x) => x.trim()).filter(Boolean);
+const pinUser = (m) => String(m.email || '').endsWith('@pin.invalid');
 const first = (name) => String(name || '').split(' ')[0];
 
 async function api(method, url, body) {
@@ -211,6 +212,7 @@ function viewLogin(query) {
     <h1>The Dolce Life</h1>
     <p class="tag">Your house-sitting companion. Everything the pets, plants and house need, one day at a time.</p>
     ${query.get('expired') ? `<div class="warn" style="margin-bottom:14px">${icon('alert')}<span>That sign-in link has expired. Enter your email for a new one.</span></div>` : ''}
+    <div id="homes"></div>
     <form class="card pad form" id="loginform">
       <label class="f"><span>Your email</span><input class="in" type="email" name="email" required autocomplete="email" placeholder="you@example.com"></label>
       <button class="btn primary block" type="submit">${icon('mail')} Email me a sign-in link</button>
@@ -222,6 +224,16 @@ function viewLogin(query) {
       <div>${icon('mail')} A morning email for the sitter, a report for the owner</div>
     </div>
   </div></div>`);
+  fetch('/api/public-stays').then((r) => r.json()).then((homes) => {
+    if (!Array.isArray(homes) || !homes.length || !$('#homes')) return;
+    $('#homes').innerHTML = `<div class="eyebrow" style="margin-bottom:8px">Homes</div><div class="stack" style="margin-bottom:22px">${homes.map((h) => `
+      <button class="card homebtn" data-act="pinHome" data-id="${h.id}" data-name="${esc(h.name)}">
+        <span class="kbadge k-dog">${icon('home')}</span>
+        <span class="grow"><b>${esc(h.name)}</b>${h.pet_names ? `<span class="muted small">${esc(h.pet_names)}</span>` : ''}</span>
+        ${icon('key')}
+      </button>`).join('')}</div>
+      <div class="eyebrow" style="margin-bottom:8px">Or sign in with email</div>`;
+  }).catch(() => {});
   $('#loginform').addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = e.target.querySelector('button'); btn.disabled = true;
@@ -245,7 +257,7 @@ async function viewStays() {
       <p class="small" style="margin:10px 0 0">${s.start_date ? `${shortDate(s.start_date)} – ${shortDate(s.end_date)}` : 'Dates not set yet'}</p>
     </a>`).join('');
   mount(`<div class="login" style="place-items:start center"><div style="width:100%;max-width:960px">
-    <div class="pagehead"><div class="row grow"><span class="brand"><span class="mark">${pawFill}</span><span class="words"><span class="name" style="font-size:26px">The Dolce Life</span><span class="stayname">Signed in as ${esc(state.me.email)}</span></span></span></div>
+    <div class="pagehead"><div class="row grow"><span class="brand"><span class="mark">${pawFill}</span><span class="words"><span class="name" style="font-size:26px">The Dolce Life</span><span class="stayname">Signed in as ${esc(pinUser(state.me) ? state.me.name : state.me.email)}</span></span></span></div>
       <button class="iconbtn" data-act="theme" aria-label="Switch light or dark mode">${themeIcon()}</button>
       <button class="btn small" data-act="logout">${icon('out')} Sign out</button></div>
     ${state.stays.length ? `<div class="stays">${cards}</div>` : `<div class="card empty"><h3>No stays yet</h3><p>Set up your home so a sitter knows exactly what to do.</p></div>`}
@@ -592,13 +604,13 @@ function viewSettings() {
   const tzs = ['Pacific/Honolulu', 'America/Anchorage', 'America/Los_Angeles', 'America/Denver', 'America/Chicago', 'America/New_York', 'Asia/Tokyo', 'Asia/Seoul', 'Europe/London', 'Australia/Sydney'];
   if (!tzs.includes(s.tz)) tzs.unshift(s.tz);
   const members = b.members.map((m) => `<div class="member">
-      <div class="who"><b>${esc(m.name || m.email)}</b><span class="muted small">${esc(m.email || '')}${m.phone ? ' · ' + esc(m.phone) : ''}</span></div>
+      <div class="who"><b>${esc(m.name || m.email)}</b><span class="muted small">${pinUser(m) ? 'Signed in with the PIN' : esc(m.email || '')}${m.phone ? ' · ' + esc(m.phone) : ''}</span></div>
       <span class="chip ${m.role === 'owner' ? 'accent' : 'olive'}">${m.role === 'owner' ? 'Owner' : 'Sitter'}</span>
       <div class="opts" style="width:100%">
-        <label class="toggle"><input type="checkbox" data-act-change="memberFlag" data-uid="${m.id}" data-f="morning_email" ${m.morning_email ? 'checked' : ''}> Morning email</label>
-        <label class="toggle"><input type="checkbox" data-act-change="memberFlag" data-uid="${m.id}" data-f="evening_report" ${m.evening_report ? 'checked' : ''}> Evening report</label>
+        ${pinUser(m) ? '<span class="muted small">No email on file</span>' : `<label class="toggle"><input type="checkbox" data-act-change="memberFlag" data-uid="${m.id}" data-f="morning_email" ${m.morning_email ? 'checked' : ''}> Morning email</label>
+        <label class="toggle"><input type="checkbox" data-act-change="memberFlag" data-uid="${m.id}" data-f="evening_report" ${m.evening_report ? 'checked' : ''}> Evening report</label>`}
         <span class="grow"></span>
-        <button class="btn small" data-act="memberLink" data-uid="${m.id}">${icon('link')} Sign-in link</button>
+        ${pinUser(m) ? '' : `<button class="btn small" data-act="memberLink" data-uid="${m.id}">${icon('link')} Sign-in link</button>`}
         <button class="btn small ghost" data-act="memberEdit" data-uid="${m.id}">${icon('edit')}</button>
       </div></div>`).join('');
   const ownerHtml = `
@@ -616,6 +628,9 @@ function viewSettings() {
       <div><h2 style="margin-top:14px">The home</h2></div>
       <label class="f"><span>Address</span><input class="in" name="address" value="${esc(s.address)}" placeholder="123 Street, Honolulu, HI 96814" autocomplete="street-address"><small>Only shown inside the app, never in emails.</small></label>
       <label class="f"><span>Getting there / parking</span><textarea class="in" name="address_notes" placeholder="Park on the street. Side gate is unlocked.">${esc(s.address_notes)}</textarea></label>
+      <div><h2 style="margin-top:14px">Sign-in screen</h2><p class="desc">A public home shows its name and pets' names on the sign-in page. Anyone with the PIN can open it as a sitter: they can check things off and post updates, but only owners can change anything.</p></div>
+      <label class="toggle"><input type="checkbox" name="is_public" ${s.is_public ? 'checked' : ''}> Show this home on the sign-in screen</label>
+      <label class="f"><span>${s.has_pin ? 'Change PIN' : 'PIN'}</span><input class="in" name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,8}" maxlength="8" autocomplete="new-password" placeholder="${s.has_pin ? 'Leave empty to keep the current PIN' : '4 to 8 digits'}"><small>${s.has_pin ? 'A PIN is set.' : 'The home only shows on the sign-in screen once it has a PIN.'}</small></label>
       <div><h2 style="margin-top:14px">"I'm here" routine</h2><p class="desc">Shown every time the sitter taps I'm here.</p></div>
       <label class="f"><span>Title</span><input class="in" name="arrival_title" value="${esc(s.arrival_title)}"></label>
       <label class="f"><span>Steps (one per line)</span><textarea class="in" name="arrival_text">${esc(s.arrival_text)}</textarea></label>
@@ -638,7 +653,7 @@ function viewSettings() {
       ${O ? ownerHtml : `<div class="card pad"><h2>The stay</h2><p class="desc">${s.start_date ? `${fmtDate(s.start_date)} at ${fmtTime(s.start_time)} to ${fmtDate(s.end_date)} at ${fmtTime(s.end_time)}.` : 'Dates not set yet.'}</p>
         <p class="small muted" style="margin:0">Morning email at ${fmtTime(s.email_time)}. Ask the owner to change your email settings.</p></div>`}
       <form class="card pad form" id="meform">
-        <div><h2>You</h2><p class="desc">${esc(me.email)}</p></div>
+        <div><h2>You</h2><p class="desc">${pinUser(me) ? 'Signed in with the home PIN' : esc(me.email)}</p></div>
         <label class="f"><span>Your name</span><input class="in" name="name" value="${esc(me.name)}" placeholder="First name is fine"></label>
         <div class="row wrap"><button class="btn" type="submit">Save name</button><span class="grow"></span>
           <button class="btn small" type="button" data-act="theme">${themeIcon()} Light / dark</button>
@@ -651,6 +666,8 @@ function viewSettings() {
   if (O) $('#stayform').addEventListener('submit', async (e) => {
     e.preventDefault();
     const body = Object.fromEntries(new FormData(e.target));
+    body.is_public = e.target.is_public.checked;
+    if (!body.pin) delete body.pin;
     if (body.start_date && body.end_date && body.end_date < body.start_date) return toast('The end date is before the start date.');
     try { await api('PUT', `/api/stays/${s.id}`, body); await loadBundle(s.id, true); state.day = null; await loadMe(); toast('Saved'); viewSettings(); } catch (err) { fail(err); }
   });
@@ -661,7 +678,7 @@ function viewSettings() {
 }
 
 // ---------- sheets & forms ----------
-function closeSheet() { $('#sheet-root').innerHTML = ''; document.body.style.overflow = ''; }
+function closeSheet() { $('#sheet-root').innerHTML = ''; document.body.style.overflow = ''; if (state.pin && !state.pinKeep) state.pin = null; }
 function openSheet(title, body, foot = '') {
   $('#sheet-root').innerHTML = `<div class="sheet-bg" data-act="sheetBg"><div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}">
     <div class="grab"></div><div class="shead"><h2>${esc(title)}</h2><button class="iconbtn" data-act="closeSheet" aria-label="Close">${icon('x')}</button></div>
@@ -762,8 +779,68 @@ function emergencySheet() {
   </div>`);
 }
 
+// ---------- PIN sign-in ----------
+function pinSheet(id, name) {
+  state.pin = { id, name, digits: '', step: 'pin', error: '' };
+  drawPin();
+}
+function drawPin() {
+  const p = state.pin;
+  if (p.step === 'name') {
+    let saved = ''; try { saved = localStorage.getItem('pinName') || ''; } catch (e) {}
+    openSheet(p.name, `<form id="pinname" class="form">
+        <p style="margin:0">PIN accepted. What's your first name? It shows next to what you check off.</p>
+        <label class="f"><span>Your first name</span><input class="in" name="name" value="${esc(saved)}" required autocomplete="given-name" maxlength="60"></label>
+        ${p.error ? `<div class="warn">${icon('alert')}<span>${esc(p.error)}</span></div>` : ''}
+      </form>`, `<span class="grow"></span><button class="btn primary" data-act="pinName">Continue</button>`);
+    const f = $('#pinname');
+    f.addEventListener('submit', (e) => { e.preventDefault(); A.pinName(); });
+    setTimeout(() => f.name.focus(), 50);
+    return;
+  }
+  const dots = Array.from({ length: Math.max(4, p.digits.length) }, (_, i) => `<span class="${i < p.digits.length ? 'on' : ''}"></span>`).join('');
+  const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'];
+  openSheet(p.name, `<p class="muted" style="margin:-6px 0 0;text-align:center">Enter the home's PIN</p>
+    <div class="pindots ${p.error ? 'shake' : ''}">${dots}</div>
+    <p class="pinerr">${esc(p.error)}</p>
+    <div class="pinpad">${keys.map((k) => k === '' ? '<span></span>' : k === 'del'
+      ? `<button data-act="pinKey" data-k="del" aria-label="Delete">${icon('left')}</button>`
+      : `<button data-act="pinKey" data-k="${k}">${k}</button>`).join('')}</div>`,
+    `<button class="btn primary block" data-act="pinGo" ${p.digits.length >= 4 ? '' : 'disabled'}>${icon('key')} Unlock</button>`);
+}
+async function pinSubmit(name) {
+  const p = state.pin;
+  const body = { stay_id: p.id, pin: p.digits };
+  if (name) body.name = name;
+  try {
+    const r = await api('POST', '/api/pin-login', body);
+    if (r.needName) { p.step = 'name'; p.error = ''; return drawPin(); }
+    try { localStorage.setItem('pinName', name); } catch (e) {}
+    closeSheet(); state.pin = null; state.me = null; state.bundle = null; state.day = null;
+    await loadMe(); go(`#/s/${r.stay_id}/today`);
+  } catch (e) {
+    p.error = e.message; if (p.step === 'pin') p.digits = ''; drawPin();
+  }
+}
+document.addEventListener('keydown', (e) => {
+  if (!state.pin || state.pin.step !== 'pin' || !$('.pinpad')) return;
+  if (/^\d$/.test(e.key)) A.pinKey({ dataset: { k: e.key } });
+  else if (e.key === 'Backspace') A.pinKey({ dataset: { k: 'del' } });
+  else if (e.key === 'Enter' && state.pin.digits.length >= 4) pinSubmit();
+});
+
 // ---------- actions ----------
 const A = {
+  pinHome: (el) => pinSheet(Number(el.dataset.id), el.dataset.name),
+  pinKey: (el) => {
+    const p = state.pin; if (!p) return;
+    const k = el.dataset.k;
+    if (k === 'del') p.digits = p.digits.slice(0, -1);
+    else if (p.digits.length < 8) p.digits += k;
+    p.error = ''; drawPin();
+  },
+  pinGo: () => pinSubmit(),
+  pinName: () => { const v = $('#pinname').name.value.trim(); if (v) pinSubmit(v); },
   theme: toggleTheme,
   closeSheet,
   sheetBg: (el, e) => { if (e.target === el) closeSheet(); },

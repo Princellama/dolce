@@ -331,3 +331,19 @@ input.in:focus, select.in:focus, textarea.in:focus { outline: 2px solid color-mi
 .segs a.on svg.i, .segs button.on svg.i { color: inherit; }
 .progress .bar span { background: linear-gradient(90deg, var(--accent), var(--olive)); }
 .check:hover { border-color: var(--accent); }
+
+/* ---------- public homes & PIN ---------- */
+.homebtn { width: 100%; display: flex; align-items: center; gap: 14px; padding: 14px; text-align: left; cursor: pointer; }
+.homebtn:hover { border-color: var(--accent); }
+.homebtn b { display: block; font-size: 17px; }
+.homebtn .muted { display: block; }
+.homebtn > svg.i { color: var(--muted); }
+.pindots { display: flex; justify-content: center; gap: 14px; margin: 18px 0 6px; }
+.pindots span { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--line-2); }
+.pindots span.on { background: var(--accent); border-color: var(--accent); }
+.pindots.shake { animation: shake .35s; }
+@keyframes shake { 20%, 60% { transform: translateX(-8px); } 40%, 80% { transform: translateX(8px); } }
+.pinerr { text-align: center; color: var(--danger); min-height: 22px; margin: 0 0 6px; font-size: 14.5px; font-weight: 500; }
+.pinpad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-width: 300px; margin: 0 auto; }
+.pinpad button { height: 62px; border-radius: 16px; border: 1px solid var(--line); background: var(--surface-2); font-size: 24px; font-weight: 600; cursor: pointer; display: grid; place-items: center; }
+.pinpad button:active { background: var(--accent-soft); }

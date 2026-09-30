@@ -141,6 +141,7 @@ async function tick() {
     const members = await all(
       `SELECT u.*, m.role, m.morning_email, m.evening_report FROM members m JOIN users u ON u.id=m.user_id WHERE m.stay_id=$1`, [stay.id]);
     for (const m of members) {
+      if (m.email.endsWith('@pin.invalid')) continue;
       const jobs = [];
       // No morning email on the first day if the sitter only starts in the afternoon.
       const morningToday = !(now.date === stay.start_date && stay.start_time > '10:00');

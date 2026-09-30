@@ -145,8 +145,35 @@ CREATE TABLE IF NOT EXISTS email_log (
 );
 `;
 
+const UPGRADES = `
+ALTER TABLE stays ADD COLUMN IF NOT EXISTS is_public BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE stays ADD COLUMN IF NOT EXISTS pin_hash TEXT NOT NULL DEFAULT '';
+CREATE TABLE IF NOT EXISTS patches (key TEXT PRIMARY KEY, ran_at TIMESTAMPTZ NOT NULL DEFAULT now());
+`;
+
+// One-off data changes for the live site. Each runs once, in order.
+const PATCHES = [
+  {
+    key: '2026-09-29-milli-public-pin',
+    sql: `UPDATE stays SET is_public = true,
+            pin_hash = 'scrypt$d2a27cc66717cea97cc6268aad03d0e0$1aab09c7fd0aaa084cac8dc837d12147d8f4eedfbba9394f53d9290264bcc2a3'
+          WHERE name = 'Milli & Reggie''s' AND pin_hash = ''`,
+  },
+];
+
 async function migrate() {
   await pool.query(SCHEMA);
+  await pool.query(UPGRADES);
 }
 
-module.exports = { pool, q, one, all, migrate };
+async function runPatches() {
+  for (const p of PATCHES) {
+    const done = await pool.query('SELECT 1 FROM patches WHERE key=$1', [p.key]);
+    if (done.rowCount) continue;
+    await pool.query(p.sql);
+    await pool.query('INSERT INTO patches (key) VALUES ($1)', [p.key]);
+    console.log('patch', p.key);
+  }
+}
+
+module.exports = { pool, q, one, all, migrate, runPatches };

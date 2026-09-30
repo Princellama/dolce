@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const express = require('express');
 const multer = require('multer');
 const sharp = require('sharp');
-const { q, one, all, migrate } = require('./db');
+const { q, one, all, migrate, runPatches } = require('./db');
 const { localNow, buildDay, dayInfo, nextDueDay, timeText } = require('./schedule');
 const email = require('./email');
 const { seedIfEmpty, createStarterStay } = require('./seed');
@@ -106,6 +106,56 @@ app.put('/api/me', needUser, wrap(async (req, res) => {
   res.json({ ok: true });
 }));
 
+// ---------- public homes + PIN sign-in ----------
+function hashPin(pin) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  return `scrypt$${salt}$${crypto.scryptSync(pin, salt, 32).toString('hex')}`;
+}
+function checkPin(pin, stored) {
+  const [kind, salt, hash] = String(stored || '').split('$');
+  if (kind !== 'scrypt' || !salt || !hash) return false;
+  const a = crypto.scryptSync(String(pin), salt, 32), b = Buffer.from(hash, 'hex');
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+function publicStay(s) { const { pin_hash, ...rest } = s; return { ...rest, has_pin: !!pin_hash }; }
+
+// Slow down PIN guessing: 6 wrong tries per home per device-address, then a 15-minute wait.
+const pinTries = new Map();
+function pinLocked(key) {
+  const t = pinTries.get(key);
+  return t && t.count >= 6 && Date.now() - t.first < 15 * 60 * 1000;
+}
+function pinFailed(key) {
+  const t = pinTries.get(key);
+  if (!t || Date.now() - t.first > 15 * 60 * 1000) pinTries.set(key, { count: 1, first: Date.now() });
+  else t.count++;
+}
+
+app.get('/api/public-stays', wrap(async (req, res) => {
+  res.json(await all(`SELECT id, name, pet_names FROM stays WHERE is_public AND pin_hash <> '' ORDER BY name`));
+}));
+
+app.post('/api/pin-login', wrap(async (req, res) => {
+  const stay = await one(`SELECT * FROM stays WHERE id=$1 AND is_public AND pin_hash <> ''`, [Number(req.body.stay_id)]);
+  if (!stay) return res.status(404).json({ error: 'That home is not available.' });
+  const key = `${req.ip}|${stay.id}`;
+  if (pinLocked(key)) return res.status(429).json({ error: 'Too many wrong tries. Wait 15 minutes and try again.' });
+  if (!checkPin(req.body.pin, stay.pin_hash)) { pinFailed(key); return res.status(403).json({ error: "That PIN didn't work.", wrongPin: true }); }
+  pinTries.delete(key);
+  const name = String(req.body.name || '').trim().slice(0, 60);
+  if (!name) return res.json({ ok: true, needName: true });
+  // Match someone already on this stay by first name, otherwise add them as a sitter.
+  const members = await all(`SELECT u.*, m.role FROM members m JOIN users u ON u.id=m.user_id WHERE m.stay_id=$1`, [stay.id]);
+  const fn = (s) => String(s || '').trim().split(/\s+/)[0].toLowerCase();
+  let u = members.find((m) => m.role === 'sitter' && fn(m.name) === fn(name));
+  if (!u) {
+    u = await one('INSERT INTO users (email,name) VALUES ($1,$2) RETURNING *', [`pin-${stay.id}-${crypto.randomBytes(6).toString('hex')}@pin.invalid`, name]);
+    await q(`INSERT INTO members (stay_id,user_id,role,morning_email,evening_report) VALUES ($1,$2,'sitter',false,false)`, [stay.id, u.id]);
+  }
+  await startSession(res, u.id);
+  res.json({ ok: true, stay_id: stay.id });
+}));
+
 // ---------- stays ----------
 async function loadStay(req, res, next) {
   const id = Number(req.params.stayId);
@@ -147,7 +197,7 @@ app.get(S, needUser, wrap(loadStay), wrap(async (req, res) => {
   for (const g of guides) g.steps = steps.filter((s) => s.guide_id === g.id);
   const isOwner = req.role === 'owner';
   res.json({
-    stay: req.stay, role: req.role, today, sections, pets, tasks,
+    stay: publicStay(req.stay), role: req.role, today, sections, pets, tasks,
     guides: isOwner ? guides : guides.filter((g) => g.steps.length || g.intro),
     contacts,
     // Sitters see names and phones of the people on the stay, not everyone's email settings.
@@ -164,6 +214,11 @@ app.put(S, needUser, wrap(loadStay), ownerOnly, wrap(async (req, res) => {
     else v = String(v ?? '');
     if (f === 'tz') { try { new Intl.DateTimeFormat('en', { timeZone: v }); } catch { return res.status(400).json({ error: 'Unknown time zone.' }); } }
     vals.push(v); sets.push(`${f}=$${vals.length}`);
+  }
+  if ('is_public' in req.body) { vals.push(!!req.body.is_public); sets.push(`is_public=$${vals.length}`); }
+  if (req.body.pin) {
+    if (!/^\d{4,8}$/.test(String(req.body.pin))) return res.status(400).json({ error: 'The PIN must be 4 to 8 digits.' });
+    vals.push(hashPin(String(req.body.pin))); sets.push(`pin_hash=$${vals.length}`);
   }
   if (sets.length) await q(`UPDATE stays SET ${sets.join(',')} WHERE id=$1`, vals);
   res.json({ ok: true });
@@ -346,6 +401,7 @@ app.use((err, req, res, next) => {
 (async () => {
   await migrate();
   await seedIfEmpty(ADMINS);
+  await runPatches();
   email.startScheduler();
   app.listen(PORT, () => console.log(`The Dolce Life on :${PORT}`));
 })();
