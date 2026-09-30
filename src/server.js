@@ -5,9 +5,10 @@ const express = require('express');
 const multer = require('multer');
 const sharp = require('sharp');
 const { q, one, all, migrate, runPatches } = require('./db');
-const { localNow, buildDay, dayInfo, nextDueDay, timeText } = require('./schedule');
+const { localNow, buildDay, dayInfo, nextDueDay, timeText, addDays, isDue } = require('./schedule');
 const email = require('./email');
 const { seedIfEmpty, createStarterStay } = require('./seed');
+const { buildIcs } = require('./calendar');
 
 const PORT = process.env.PORT || 8080;
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, '..', 'data', 'uploads');
@@ -208,6 +209,7 @@ app.get(S, needUser, wrap(loadStay), wrap(async (req, res) => {
   for (const g of guides) g.steps = steps.filter((s) => s.guide_id === g.id);
   const isOwner = req.role === 'owner';
   res.json({
+    report_to: (await email.reportRecipients(id)).map((u) => first(u.name) || u.email),
     stay: publicStay(req.stay), role: req.role, today, sections, pets, tasks,
     guides: isOwner ? guides : guides.filter((g) => g.steps.length || g.intro),
     contacts,
@@ -264,6 +266,44 @@ app.post(`${S}/arrive`, needUser, wrap(loadStay), wrap(async (req, res) => {
   const recent = await one(`SELECT id FROM updates WHERE stay_id=$1 AND user_id=$2 AND kind='arrival' AND created_at > now() - interval '20 minutes'`, [req.stay.id, req.user.id]);
   if (!recent) await q(`INSERT INTO updates (stay_id,user_id,kind,day) VALUES ($1,$2,'arrival',$3)`, [req.stay.id, req.user.id, now.date]);
   res.json({ ok: true });
+}));
+
+// ---------- calendar ----------
+// Each person gets a private feed link, so calendar apps can fetch it without signing in.
+app.post(`${S}/calendar-link`, needUser, wrap(loadStay), wrap(async (req, res) => {
+  let row = await one('SELECT token FROM cal_tokens WHERE user_id=$1 AND stay_id=$2', [req.user.id, req.stay.id]);
+  if (!row) row = await one('INSERT INTO cal_tokens (token,user_id,stay_id) VALUES ($1,$2,$3) RETURNING token', [token(), req.user.id, req.stay.id]);
+  res.json({ url: `${email.APP_URL()}/cal/${row.token}.ics` });
+}));
+app.get('/cal/:token.ics', wrap(async (req, res) => {
+  const row = await one(`SELECT s.* FROM cal_tokens c JOIN stays s ON s.id=c.stay_id
+    JOIN members m ON m.stay_id=c.stay_id AND m.user_id=c.user_id WHERE c.token=$1`, [req.params.token]);
+  const admin = !row && await one(`SELECT s.* FROM cal_tokens c JOIN stays s ON s.id=c.stay_id JOIN users u ON u.id=c.user_id WHERE c.token=$1 AND lower(u.email) = ANY($2)`, [req.params.token, ADMINS]);
+  const stay = row || admin;
+  if (!stay) return res.status(404).send('Not found');
+  res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache');
+  if (req.query.download) res.setHeader('Content-Disposition', `attachment; filename="dolce-${stay.id}.ics"`);
+  res.send(await buildIcs(stay, email.APP_URL()));
+}));
+
+// ---------- end-of-day check-out ----------
+app.post(`${S}/checkout`, needUser, wrap(loadStay), wrap(async (req, res) => {
+  const date = localNow(req.stay.tz).date;
+  const note = String(req.body.note || '').trim().slice(0, 4000);
+  const photos = (Array.isArray(req.body.photos) ? req.body.photos : []).map(cleanPhoto).filter(Boolean).slice(0, 12);
+  const { tasks } = await buildDay(req.stay, date);
+  const reasons = {};
+  for (const [id, r] of Object.entries(req.body.reasons || {})) {
+    const t = tasks.find((x) => x.id === Number(id));
+    const txt = String(r || '').trim().slice(0, 500);
+    if (t && !t.done && txt) reasons[t.id] = txt;
+  }
+  const extra = { photos, reasons, done: tasks.filter((t) => t.done).length, total: tasks.length };
+  const row = await one(`INSERT INTO updates (stay_id,user_id,kind,text,photo,day,extra) VALUES ($1,$2,'checkout',$3,$4,$5,$6) RETURNING *`,
+    [req.stay.id, req.user.id, note, photos[0] || '', date, extra]);
+  const sent = await email.sendCheckout(req.stay, date);
+  res.json({ ok: true, update: row, sent, emailReady: email.emailReady() });
 }));
 
 // ---------- updates (notes + photos for the owner) ----------

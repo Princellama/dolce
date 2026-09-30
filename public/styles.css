@@ -376,3 +376,33 @@ input.in:focus, select.in:focus, textarea.in:focus { outline: 2px solid color-mi
 .shareic { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: var(--bg-2); vertical-align: -5px; }
 .shareic svg.i { width: 15px; height: 15px; }
 [hidden] { display: none !important; }
+
+/* ---------- check-out ---------- */
+.checkoutbtn { width: 100%; display: flex; align-items: center; gap: 14px; padding: 16px; border-radius: var(--radius); border: 1.5px dashed var(--line-2); background: var(--surface); color: var(--ink); cursor: pointer; text-align: left; }
+.checkoutbtn:hover { border-color: var(--accent); }
+.checkoutbtn .ic { width: 46px; height: 46px; border-radius: 13px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent-text); flex: none; }
+.checkoutbtn .ic svg.i { width: 24px; height: 24px; transform: scaleX(-1); }
+.checkoutbtn b { display: block; font-size: 17px; }
+.checkoutbtn span span, .checkoutbtn .grow > span { display: block; font-size: 14px; color: var(--muted); }
+.checkoutbtn.ready { border: 0; background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 70%, var(--olive))); color: var(--accent-ink); box-shadow: var(--shadow); }
+.checkoutbtn.ready .ic { background: color-mix(in srgb, var(--accent-ink) 20%, transparent); color: var(--accent-ink); }
+.checkoutbtn.ready .grow > span { color: color-mix(in srgb, var(--accent-ink) 85%, transparent); }
+.checkedout .kbadge { width: 44px; height: 44px; border-radius: 12px; }
+.cosum { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.cosum > div { background: var(--bg-2); border-radius: 12px; padding: 10px 12px; }
+.cosum b { display: block; font-size: 24px; font-family: var(--serif); }
+.cosum span { font-size: 13px; color: var(--muted); }
+.coreason { margin-top: 10px; }
+.coreason > span { font-weight: 600 !important; color: var(--ink) !important; }
+.cophotos { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.cothumb { position: relative; width: 76px; height: 76px; }
+.cothumb img { width: 100%; height: 100%; object-fit: cover; border-radius: 12px; }
+.cothumb button { position: absolute; top: -6px; right: -6px; width: 26px; height: 26px; border-radius: 50%; border: 0; background: var(--ink); color: var(--bg); display: grid; place-items: center; cursor: pointer; padding: 0; }
+.cothumb button svg.i { width: 14px; height: 14px; }
+.feedthumb { width: 110px !important; height: 110px; object-fit: cover; margin: 0 !important; border-radius: 12px; }
+.checkoutupd { background: color-mix(in srgb, var(--k-plants) 35%, transparent); }
+
+.daynav button.calbtn { width: auto; padding: 0 10px; gap: 6px; display: inline-flex; align-items: center; font-size: 13px; font-weight: 600; color: var(--accent-text); }
+.daynav button.calbtn svg.i { width: 17px; height: 17px; }
+@media (max-width: 420px) { .daynav button.calbtn span { display: none; } .daynav button.calbtn { width: 34px; padding: 0; justify-content: center; } }
+a.homebtn { text-decoration: none; color: inherit; }

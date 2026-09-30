@@ -148,6 +148,9 @@ CREATE TABLE IF NOT EXISTS email_log (
 const UPGRADES = `
 ALTER TABLE stays ADD COLUMN IF NOT EXISTS is_public BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE stays ADD COLUMN IF NOT EXISTS pin_hash TEXT NOT NULL DEFAULT '';
+ALTER TABLE updates ADD COLUMN IF NOT EXISTS extra JSONB NOT NULL DEFAULT '{}';
+ALTER TABLE stays ALTER COLUMN report_time SET DEFAULT '21:00';
+CREATE TABLE IF NOT EXISTS cal_tokens (token TEXT PRIMARY KEY, user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE, stay_id INT NOT NULL REFERENCES stays(id) ON DELETE CASCADE, UNIQUE (user_id, stay_id));
 CREATE TABLE IF NOT EXISTS patches (key TEXT PRIMARY KEY, ran_at TIMESTAMPTZ NOT NULL DEFAULT now());
 `;
 
@@ -181,6 +184,11 @@ const PATCHES = [
           VALUES (sid, uid, 'sitter', true, false, '808-382-3856')
           ON CONFLICT (stay_id, user_id) DO UPDATE SET role = 'sitter', morning_email = true, phone = '808-382-3856';
       END $$`,
+  },
+  {
+    // The evening report is now the safety net for a missed check-out, so it goes out at 9 PM.
+    key: '2026-09-29-report-9pm',
+    sql: `UPDATE stays SET report_time = '21:00' WHERE report_time = '20:00'`,
   },
 ];
 

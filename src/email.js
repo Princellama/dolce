@@ -8,7 +8,7 @@ const emailReady = () => !!process.env.RESEND_API_KEY;
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 
-async function send({ to, subject, html, text }) {
+async function send({ to, subject, html, text, replyTo }) {
   if (!emailReady()) {
     console.log(`[email not configured] to=${to} subject="${subject}"\n${text || ''}`);
     return { skipped: true };
@@ -16,7 +16,7 @@ async function send({ to, subject, html, text }) {
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from: FROM(), to: [to], subject, html, text }),
+    body: JSON.stringify({ from: FROM(), to: [to], subject, html, text, ...(replyTo ? { reply_to: replyTo } : {}) }),
   });
   if (!res.ok) throw new Error(`Email failed (${res.status}): ${await res.text()}`);
   return res.json();
@@ -94,35 +94,69 @@ async function morningEmail(stay, user, date, role) {
   });
 }
 
+const firstName = (n) => String(n || '').trim().split(/\s+/)[0];
+const realEmail = (e) => e && !String(e).endsWith('@pin.invalid');
+
+// The owner's report for a day. With a check-out, it leads with the sitter's note and photos;
+// without one (the 9 PM safety net) it says so plainly.
 async function eveningReport(stay, user, date) {
   const { info, tasks } = await buildDay(stay, date);
-  const arrivals = await all(
-    `SELECT up.created_at, u.name FROM updates up LEFT JOIN users u ON u.id = up.user_id
-      WHERE up.stay_id=$1 AND up.day=$2 AND up.kind='arrival' ORDER BY up.created_at`, [stay.id, date]);
-  const notes = await all(
-    `SELECT up.*, u.name FROM updates up LEFT JOIN users u ON u.id = up.user_id
-      WHERE up.stay_id=$1 AND up.day=$2 AND up.kind='note' ORDER BY up.created_at`, [stay.id, date]);
+  const ups = await all(
+    `SELECT up.*, u.name, u.email FROM updates up LEFT JOIN users u ON u.id = up.user_id
+      WHERE up.stay_id=$1 AND up.day=$2 ORDER BY up.created_at`, [stay.id, date]);
+  const arrivals = ups.filter((u) => u.kind === 'arrival');
+  const notes = ups.filter((u) => u.kind === 'note');
+  const checkout = ups.filter((u) => u.kind === 'checkout').pop();
   const t = (d) => new Date(d).toLocaleTimeString('en-US', { timeZone: stay.tz, hour: 'numeric', minute: '2-digit' });
   const done = tasks.filter((x) => x.done), open = tasks.filter((x) => !x.done && !x.optional);
+  const reasons = (checkout && checkout.extra && checkout.extra.reasons) || {};
+  const who = checkout ? firstName(checkout.name) || 'Your sitter' : '';
+  const photos = [
+    ...((checkout && checkout.extra && checkout.extra.photos) || []),
+    ...notes.filter((n) => n.photo).map((n) => n.photo),
+  ];
+  const label = (s) => `<div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#6c827d;margin:18px 0 6px">${s}</div>`;
   const body = `
-    <p style="margin-top:0;font-size:17px"><b>${done.length} of ${tasks.length}</b> things done today.</p>
-    ${arrivals.length ? `<p>🏠 Visits: ${arrivals.map((a) => `${t(a.created_at)}${a.name ? ' (' + esc(a.name.split(' ')[0]) + ')' : ''}`).join(', ')}</p>` : '<p>🏠 No visits checked in today.</p>'}
-    ${notes.map((n) => `<div style="padding:10px 0;border-top:1px solid #e4ede9">
-      <div style="font-size:13px;color:#6c827d">${esc(n.name ? n.name.split(' ')[0] : 'Sitter')} · ${t(n.created_at)}</div>
-      ${n.text ? `<div style="margin-top:4px">${esc(n.text)}</div>` : ''}
-      ${n.photo ? `<img src="${APP_URL()}${n.photo}" alt="" style="margin-top:8px;max-width:100%;border-radius:10px">` : ''}
-    </div>`).join('')}
-    ${done.length ? `<div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#6c827d;margin:16px 0 6px">Done</div>
-      ${done.map((x) => `<div style="padding:4px 0">✅ ${esc(x.title)} <span style="color:#6c827d;font-size:13px">${t(x.done_at)}</span></div>`).join('')}` : ''}
-    ${open.length ? `<div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#6c827d;margin:16px 0 6px">Not checked off</div>
-      ${open.map((x) => `<div style="padding:4px 0">○ ${esc(x.title)}</div>`).join('')}` : ''}
-    <p style="margin-top:20px">${button(`${APP_URL()}/#/s/${stay.id}/updates`, 'See updates')}</p>`;
+    ${checkout
+      ? `<p style="margin:0;font-size:18px"><b>${esc(who)} checked out at ${t(checkout.created_at)}</b></p>`
+      : `<p style="margin:0;font-size:18px;color:#93440f"><b>No check-out today</b></p><p style="margin:6px 0 0;color:#6c827d;font-size:14px">This is the automatic ${esc(t(new Date()))} report. Here's what the app shows.</p>`}
+    <p style="margin:10px 0 0;font-size:16px"><b>${done.length} of ${tasks.length}</b> things done${arrivals.length ? ` · ${arrivals.length} visit${arrivals.length > 1 ? 's' : ''} (${arrivals.map((a) => t(a.created_at)).join(', ')})` : ' · no check-ins'}</p>
+    ${checkout && checkout.text ? `<div style="margin:16px 0 0;padding:14px 16px;background:#f2f6f4;border-radius:12px;border-left:4px solid #1b7a72;white-space:pre-line">${esc(checkout.text)}<div style="font-size:13px;color:#6c827d;margin-top:6px">${esc(who)}</div></div>` : ''}
+    ${photos.map((ph) => `<img src="${APP_URL()}${ph}" alt="" style="display:block;margin-top:12px;width:100%;border-radius:12px">`).join('')}
+    ${notes.filter((n) => n.text).length ? label('Updates during the day') + notes.filter((n) => n.text).map((n) => `<div style="padding:6px 0"><span style="color:#6c827d;font-size:13px">${t(n.created_at)} · ${esc(firstName(n.name) || 'Sitter')}</span><br>${esc(n.text)}</div>`).join('') : ''}
+    ${open.length ? label('Not done') + open.map((x) => `<div style="padding:5px 0">○ <b>${esc(x.title)}</b>${reasons[x.id] ? `<div style="color:#5f5147;font-size:14px;margin-left:18px">${esc(reasons[x.id])}</div>` : ''}</div>`).join('') : ''}
+    ${done.length ? label('Done') + done.map((x) => `<div style="padding:4px 0">✅ ${esc(x.title)} <span style="color:#6c827d;font-size:13px">${t(x.done_at)}${x.done_by_name ? ' · ' + esc(firstName(x.done_by_name)) : ''}</span></div>`).join('') : ''}
+    <p style="margin-top:22px">${button(`${APP_URL()}/#/s/${stay.id}/updates`, 'Open in The Dolce Life')}</p>
+    ${checkout && realEmail(checkout.email) ? `<p style="font-size:13px;color:#6c827d">Reply to this email to answer ${esc(who)} directly.</p>` : ''}`;
+  const petName = (stay.pet_names || '').split(',')[0].trim();
   await send({
     to: user.email,
-    subject: `Today at home: ${done.length}/${tasks.length} done${notes.some((n) => n.photo) ? ' 📷' : ''}`,
-    text: `${done.length} of ${tasks.length} done. Visits: ${arrivals.length}. Notes: ${notes.map((n) => n.text).join(' | ')}`,
-    html: shell(`Evening report · ${info.index ? `Day ${info.index} of ${info.total}` : fmtDate(date)}`, body),
+    replyTo: checkout && realEmail(checkout.email) ? checkout.email : undefined,
+    subject: checkout
+      ? `${who} checked out: ${done.length}/${tasks.length} done${photos.length ? ' 📷' : ''}`
+      : `No check-out today${petName ? ` at ${petName}'s` : ''}: ${done.length}/${tasks.length} done`,
+    text: `${checkout ? `${who} checked out at ${t(checkout.created_at)}.` : 'No check-out today.'} ${done.length} of ${tasks.length} done.${checkout && checkout.text ? `\n\n${checkout.text}` : ''}\n\n${APP_URL()}/#/s/${stay.id}/updates`,
+    html: shell(`${checkout ? 'End of day' : 'Evening report'} · ${info.index ? `Day ${info.index} of ${info.total}` : fmtDate(date)}`, body),
   });
+}
+
+// Who gets the owner's report: owners with the evening report on and a real email.
+async function reportRecipients(stayId) {
+  return (await all(
+    `SELECT u.* FROM members m JOIN users u ON u.id=m.user_id WHERE m.stay_id=$1 AND m.role='owner' AND m.evening_report`, [stayId],
+  )).filter((u) => realEmail(u.email));
+}
+
+// Sent the moment a sitter checks out. Marks the day's report as sent so the 9 PM one is skipped.
+async function sendCheckout(stay, date) {
+  const people = await reportRecipients(stay.id);
+  const sent = [];
+  for (const u of people) {
+    await q(`INSERT INTO email_log (stay_id,user_id,kind,day) VALUES ($1,$2,'report',$3) ON CONFLICT DO NOTHING`, [stay.id, u.id, date]);
+    if (!emailReady()) continue;
+    try { await eveningReport(stay, u, date); sent.push(firstName(u.name) || u.email); } catch (e) { console.error('checkout email', u.email, e.message); }
+  }
+  return sent;
 }
 
 // Runs every minute. Sends each email once per person per day, within 3 hours of its set time.
@@ -166,4 +200,4 @@ function startScheduler() {
   setTimeout(() => tick().catch((e) => console.error('scheduler', e)), 5000);
 }
 
-module.exports = { send, emailReady, loginEmail, inviteEmail, morningEmail, eveningReport, startScheduler, APP_URL };
+module.exports = { send, emailReady, loginEmail, inviteEmail, morningEmail, eveningReport, sendCheckout, reportRecipients, startScheduler, APP_URL };

@@ -96,6 +96,7 @@ const P = {
   leaf: '<path d="M5 19c0-8 5-13.5 15-14-0.5 10-6 15-14 15"/><path d="M5 19l7-7"/>',
   grid: '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
   send: '<path d="M4 12l16-8-6 16-2.5-6.5z"/>',
+  cal: '<rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M8 3v4M16 3v4M3.5 10h17M12 13v5M9.5 15.5h5"/>',
   copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-9A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16H8"/>',
 };
 const icon = (n, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${P[n] || ''}</svg>`;
@@ -377,6 +378,16 @@ async function viewToday(query) {
 
   const arrivals = d.updates.filter((u) => u.kind === 'arrival');
   const notes = d.updates.filter((u) => u.kind === 'note');
+  const checkout = d.updates.filter((u) => u.kind === 'checkout').pop();
+  const canCheckout = isToday && !info.before && !info.after;
+  const allDone = tasks.length && tasks.every((t) => t.done || t.optional);
+  const coNames = ownerNames();
+  const checkoutHtml = !canCheckout ? '' : checkout
+    ? `<div class="card pad checkedout"><div class="row"><span class="kbadge k-plants">${icon('check')}</span><div class="grow">
+        <b>Checked out at ${clock(checkout.created_at, s.tz)}${checkout.name ? ' by ' + esc(first(checkout.name)) : ''}</b>
+        <div class="small muted">${state.coSent ? esc(state.coSent) : `Report for ${esc(coNames)}.`}</div></div></div>
+        <div class="row wrap" style="margin-top:12px"><button class="btn small" data-act="checkout">${icon('send')} Send another update</button><button class="btn small ghost" data-act="shareDay">${icon('camera')} Share as image</button></div></div>`
+    : `<button class="checkoutbtn ${allDone ? 'ready' : ''}" data-act="checkout"><span class="ic">${icon('out')}</span><span class="grow"><b>Check out for today</b><span>${allDone ? `All done! Let ${esc(coNames)} know how it went.` : `Sends ${esc(coNames)} a summary of today, with your note and photos.`}</span></span>${icon('right')}</button>`;
   const canPrev = !s.start_date || date > addDays(s.start_date, -1);
   const canNext = !s.end_date || date < s.end_date;
 
@@ -397,6 +408,7 @@ async function viewToday(query) {
       <svg class="paw" viewBox="0 0 24 24">${pawFill.replace(/^<svg[^>]*>|<\/svg>$/g, '')}</svg>
       <div class="dayline"><span class="eyebrow">${info.index && info.inStay ? `Day ${info.index} of ${info.total}` : isToday ? 'Today' : ''}</span>
         <div class="daynav">
+          <button class="calbtn" data-act="calendar" aria-label="Add to calendar">${icon('cal')}<span>Calendar</span></button>
           <button data-act="day" data-d="-1" ${canPrev ? '' : 'disabled'} aria-label="Previous day">${icon('left')}</button>
           ${isToday ? '' : `<button class="today" data-act="day" data-d="0">Today</button>`}
           <button data-act="day" data-d="1" ${canNext ? '' : 'disabled'} aria-label="Next day">${icon('right')}</button>
@@ -407,9 +419,11 @@ async function viewToday(query) {
       <div class="progress"><div class="bar"><span style="width:${pct}%"></span></div><div class="lbl"><span>${doneN} of ${tasks.length} done</span><span>${pct === 100 && tasks.length ? 'All done. Grazie!' : ''}</span></div></div>
     </div>
     ${notice ? `<div class="notice" style="margin-top:14px">${icon('clock')}<span>${esc(notice)}</span></div>` : ''}
+    ${allDone && !checkout && canCheckout ? `<div style="margin-top:14px">${checkoutHtml}</div>` : ''}
     <div style="margin-top:14px">${installTip()}</div>
     <div class="mobile-side" style="margin-top:14px"></div>
     ${tasks.length ? timed + dueHtml + anyHtml : `<div class="card empty" style="margin-top:18px"><h3>Nothing on the list</h3><p>${isOwner() ? 'Add to-dos from the Care tab.' : 'Enjoy the quiet.'}</p></div>`}
+    ${checkoutHtml && !(allDone && !checkout) ? `<div style="margin-top:22px">${checkoutHtml}</div>` : ''}
     ${isOwner() ? `<div style="margin-top:18px"><button class="btn small" data-act="newTask">${icon('plus')} Add a to-do</button></div>` : ''}
   </div>${side}</div>`));
   placeSide();
@@ -615,10 +629,15 @@ async function viewUpdates() {
         <span class="grow"></span>
         <button class="btn primary small" type="submit">${icon('send')} Post</button>
       </div>
-      <p class="small muted" style="margin:10px 0 0">Owners get today's updates in their evening report.</p>
+      <p class="small muted" style="margin:10px 0 0">Owners see these right away, and in the end-of-day report.</p>
     </form>
     ${Object.keys(byDay).length ? Object.entries(byDay).map(([day, list]) => `<div class="feedday"><h3>${esc(fmtDate(day))}</h3><div class="card">
-      ${list.map((u) => u.kind === 'arrival'
+      ${list.map((u) => u.kind === 'checkout'
+        ? `<div class="upd checkoutupd"><div class="who"><span class="chip k-plants">${icon('check')}Checked out</span><b style="color:var(--ink)">${esc(first(u.name) || 'Someone')}</b><span>${clock(u.created_at, s.tz)}</span><span class="grow"></span>${u.extra && u.extra.total != null ? `<span>${u.extra.done} of ${u.extra.total} done</span>` : ''}</div>
+            ${u.text ? `<div class="txt">${esc(u.text)}</div>` : ''}
+            ${u.extra && u.extra.reasons && Object.keys(u.extra.reasons).length ? `<div class="small muted" style="margin-top:6px">${Object.entries(u.extra.reasons).map(([id, r]) => { const t = B().tasks.find((x) => x.id === Number(id)); return `○ ${esc(t ? t.title : 'To-do')}: ${esc(r)}`; }).join('<br>')}</div>` : ''}
+            ${u.extra && u.extra.photos && u.extra.photos.length ? `<div class="cophotos" style="margin-top:10px">${u.extra.photos.map((p) => `<img src="${esc(p)}" alt="" loading="lazy" data-zoom class="feedthumb">`).join('')}</div>` : ''}</div>`
+        : u.kind === 'arrival'
         ? `<div class="upd arrival">${icon('key')}<span><b>${esc(first(u.name) || 'Someone')}</b> checked in at ${clock(u.created_at, s.tz)}</span></div>`
         : `<div class="upd"><div class="who"><b style="color:var(--ink)">${esc(first(u.name) || 'Someone')}</b><span>${clock(u.created_at, s.tz)}</span><span class="grow"></span>
             ${isOwner() || u.user_id === state.me.id ? `<button class="iconbtn" style="width:32px;height:32px" data-act="delUpdate" data-id="${u.id}" aria-label="Delete">${icon('trash')}</button>` : ''}</div>
@@ -815,6 +834,113 @@ function emergencySheet() {
   </div>`);
 }
 
+// ---------- end-of-day check-out ----------
+function ownerNames() {
+  const b = B();
+  let names = (b.report_to || []).filter(Boolean);
+  if (!names.length) names = b.contacts.filter((c) => /owner/i.test(c.role)).map((c) => first(c.name));
+  if (!names.length) return 'the owner';
+  return names.length === 1 ? names[0] : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1];
+}
+function coOwnerFirst() { const n = ownerNames(); return n === 'the owner' ? 'the owner' : n.split(/,| and /)[0].trim(); }
+function openCheckout() {
+  state.co = state.co && state.co.date === state.dayDate ? state.co : { date: state.dayDate, note: '', reasons: {}, photos: [] };
+  drawCheckout();
+}
+function syncCheckout() {
+  const f = $('#coform'); if (!f || !state.co) return;
+  state.co.note = f.note.value;
+  f.querySelectorAll('[data-reason]').forEach((el) => { state.co.reasons[el.dataset.reason] = el.value; });
+}
+function drawCheckout() {
+  const co = state.co, d = state.day, s = B().stay;
+  const tasks = d.tasks, done = tasks.filter((t) => t.done), open = tasks.filter((t) => !t.done && !t.optional);
+  const visits = d.updates.filter((u) => u.kind === 'arrival').length;
+  const who = ownerNames();
+  openSheet('Check out for today', `<form id="coform" class="form">
+    <div class="cosum"><div><b>${done.length}</b><span>of ${tasks.length} done</span></div><div><b>${visits}</b><span>visit${visits === 1 ? '' : 's'}</span></div><div><b>${co.photos.length}</b><span>photo${co.photos.length === 1 ? '' : 's'}</span></div></div>
+    ${open.length ? `<div><div class="eyebrow" style="margin-bottom:6px">Not done yet</div>${open.map((t) => `<label class="f coreason"><span>○ ${esc(t.title)}</span><input class="in" data-reason="${t.id}" value="${esc(co.reasons[t.id] || '')}" placeholder="Why? (optional)"></label>`).join('')}
+      <p class="small muted" style="margin:4px 0 0">Did some of these? Close this and tick them first.</p></div>` : `<div class="notice">${icon('check')}<span>Everything's done today. Nice work!</span></div>`}
+    <label class="f"><span style="font-size:16px;color:var(--ink)">Anything you want to let ${esc(who)} know?</span><textarea class="in" name="note" placeholder="How was ${esc((s.pet_names || '').split(',')[0].trim() || 'everyone')} today?">${esc(co.note)}</textarea></label>
+    <div>
+      <div class="cophotos">${co.photos.map((p, i) => `<span class="cothumb"><img src="${esc(p)}" alt=""><button type="button" data-act="coPhotoDel" data-i="${i}" aria-label="Remove photo">${icon('x')}</button></span>`).join('')}
+        <label class="btn small">${icon('camera')} ${co.photos.length ? 'Add more' : 'Add photos'}<input type="file" accept="image/*" multiple data-act-change="coPhotos" hidden></label></div>
+    </div>
+  </form>`, `<button class="btn" data-act="shareDay">${icon('camera')} Share as image</button><span class="grow"></span><button class="btn primary" data-act="coSend">${icon('send')} Send to ${esc(coOwnerFirst())}</button>`);
+}
+
+// A tidy picture of the day, for texting.
+async function dayImage() {
+  const d = state.day, s = B().stay, co = state.co || {};
+  const checkout = d.updates.filter((u) => u.kind === 'checkout').pop();
+  const note = (co.note || (checkout && checkout.text) || '').trim();
+  const photos = co.photos && co.photos.length ? co.photos : (checkout && checkout.extra && checkout.extra.photos) || [];
+  const reasons = { ...((checkout && checkout.extra && checkout.extra.reasons) || {}), ...(co.reasons || {}) };
+  const tasks = d.tasks, done = tasks.filter((t) => t.done), open = tasks.filter((t) => !t.done && !t.optional);
+  const W = 1080, P = 72, cs = getComputedStyle(document.documentElement);
+  const col = (v) => cs.getPropertyValue(v).trim();
+  const light = { bg: '#f2f6f4', card: '#ffffff', ink: '#15302c', muted: '#6c827d', accent: '#1b7a72', lemon: '#e0aa22', line: '#dbe6e1', danger: '#93440f' };
+  const C = light;
+  const serif = `"Fraunces", Georgia, serif`, sans = `"DM Sans", -apple-system, "Segoe UI", Helvetica, Arial, sans-serif`;
+  const imgs = await Promise.all(photos.slice(0, 2).map((src) => new Promise((ok) => { const im = new Image(); im.onload = () => ok(im); im.onerror = () => ok(null); im.src = src; })));
+  const cv = document.createElement('canvas'), x = cv.getContext('2d');
+  const wrapText = (text, font, maxW) => {
+    x.font = font; const out = [];
+    for (const para of String(text).split('\n')) {
+      let line = '';
+      for (const w of para.split(' ')) { const t = line ? line + ' ' + w : w; if (x.measureText(t).width > maxW && line) { out.push(line); line = w; } else line = t; }
+      out.push(line);
+    }
+    return out;
+  };
+  const noteLines = note ? wrapText(note, `italic 38px ${serif}`, W - P * 2 - 40) : [];
+  const rows = [...done.map((t) => ({ t, ok: true })), ...open.map((t) => ({ t, ok: false }))];
+  const photoH = imgs.filter(Boolean).length ? 520 : 0;
+  let H = 330 + rows.length * 58 + open.filter((t) => reasons[t.id]).length * 40 + (noteLines.length ? noteLines.length * 52 + 90 : 0) + photoH + 150;
+  cv.width = W; cv.height = H;
+  x.fillStyle = C.bg; x.fillRect(0, 0, W, H);
+  let y = P;
+  x.fillStyle = C.accent; x.font = `italic 44px ${serif}`; x.fillText('The Dolce Life', P, y + 40);
+  x.fillStyle = C.muted; x.font = `600 26px ${sans}`;
+  const di = d.info; x.fillText(`${di.index ? `DAY ${di.index} OF ${di.total} · ` : ''}${fmtDate(d.info.date, { weekday: 'long', month: 'long', day: 'numeric' }).toUpperCase()}`, P, y + 92);
+  y += 150;
+  x.fillStyle = C.ink; x.font = `600 64px ${serif}`; x.fillText(`${done.length} of ${tasks.length} done`, P, y + 40);
+  const pet = (s.pet_names || '').split(',')[0].trim();
+  x.fillStyle = C.muted; x.font = `30px ${sans}`; x.fillText(`${pet ? pet + "'s day" : s.name}${checkout ? ` · checked out ${clock(checkout.created_at, s.tz)}` : ''}`, P, y + 92);
+  y += 140;
+  if (noteLines.length) {
+    const h = noteLines.length * 52 + 50;
+    x.fillStyle = C.card; x.beginPath(); x.roundRect(P, y, W - P * 2, h, 24); x.fill();
+    x.fillStyle = C.accent; x.fillRect(P, y, 8, h);
+    x.fillStyle = C.ink; x.font = `italic 38px ${serif}`;
+    noteLines.forEach((l, i) => x.fillText(l, P + 36, y + 62 + i * 52));
+    y += h + 40;
+  }
+  const good = imgs.filter(Boolean);
+  if (good.length) {
+    const gw = (W - P * 2 - (good.length - 1) * 20) / good.length;
+    good.forEach((im, i) => {
+      const bx = P + i * (gw + 20), r = Math.max(gw / im.width, 480 / im.height);
+      const sw = gw / r, sh = 480 / r;
+      x.save(); x.beginPath(); x.roundRect(bx, y, gw, 480, 24); x.clip();
+      x.drawImage(im, (im.width - sw) / 2, (im.height - sh) / 2, sw, sh, bx, y, gw, 480); x.restore();
+    });
+    y += 520;
+  }
+  for (const { t, ok } of rows) {
+    x.fillStyle = ok ? C.lemon : 'transparent'; x.strokeStyle = ok ? C.lemon : C.muted; x.lineWidth = 3;
+    x.beginPath(); x.arc(P + 18, y + 22, 17, 0, Math.PI * 2); ok ? x.fill() : x.stroke();
+    if (ok) { x.strokeStyle = '#2e2200'; x.lineWidth = 4; x.beginPath(); x.moveTo(P + 10, y + 22); x.lineTo(P + 16, y + 29); x.lineTo(P + 27, y + 15); x.stroke(); }
+    x.fillStyle = ok ? C.ink : C.muted; x.font = `${ok ? 500 : 400} 32px ${sans}`;
+    x.fillText(t.title.length > 46 ? t.title.slice(0, 45) + '…' : t.title, P + 56, y + 33);
+    if (ok && t.done_at) { x.fillStyle = C.muted; x.font = `26px ${sans}`; const tm = clock(t.done_at, s.tz); x.fillText(tm, W - P - x.measureText(tm).width, y + 33); }
+    y += 58;
+    if (!ok && reasons[t.id]) { x.fillStyle = C.danger; x.font = `italic 26px ${sans}`; x.fillText(String(reasons[t.id]).slice(0, 60), P + 56, y + 10); y += 40; }
+  }
+  x.fillStyle = C.muted; x.font = `24px ${sans}`; x.fillText('dolce.princellama.com', P, H - 56);
+  return new Promise((ok) => cv.toBlob(ok, 'image/png'));
+}
+
 // ---------- PIN sign-in ----------
 function pinSheet(id, name) {
   state.pin = { id, name, digits: '', step: 'pin', error: '' };
@@ -865,6 +991,44 @@ document.addEventListener('keydown', (e) => {
 
 // ---------- actions ----------
 const A = {
+  calendar: async () => {
+    try {
+      const r = await api('POST', `/api/stays/${B().stay.id}/calendar-link`);
+      const webcal = r.url.replace(/^https?:/, 'webcal:');
+      const google = 'https://calendar.google.com/calendar/r?cid=' + encodeURIComponent(webcal);
+      openSheet('Add to your calendar', `<p style="margin:0 0 14px;color:var(--ink-2)">Every timed to-do for the whole stay, with a reminder 10 minutes before. If the owner changes the routine, a subscribed calendar updates by itself.</p>
+        <div class="stack">
+          <a class="card homebtn" href="${esc(google)}" target="_blank" rel="noopener"><span class="kbadge k-dog">${icon('cal')}</span><span class="grow"><b>Google Calendar</b><span class="muted small">Subscribe. Updates every few hours.</span></span>${icon('right')}</a>
+          <a class="card homebtn" href="${esc(webcal)}"><span class="kbadge k-house">${icon('cal')}</span><span class="grow"><b>iPhone / Apple Calendar</b><span class="muted small">Subscribe. Tap Subscribe when asked.</span></span>${icon('right')}</a>
+          <a class="card homebtn" href="${esc(r.url)}?download=1"><span class="kbadge k-cat">${icon('down')}</span><span class="grow"><b>Download .ics file</b><span class="muted small">A one-time copy for Outlook or any calendar.</span></span>${icon('right')}</a>
+        </div>
+        <p class="small muted" style="margin:14px 0 0">This link is just for you. Don't share it: anyone with it can see the schedule.</p>`);
+    } catch (e) { fail(e); }
+  },
+  checkout: () => openCheckout(),
+  coPhotoDel: (el) => { syncCheckout(); state.co.photos.splice(Number(el.dataset.i), 1); drawCheckout(); },
+  coSend: async (el) => {
+    syncCheckout(); el.disabled = true;
+    try {
+      const co = state.co;
+      const r = await api('POST', `/api/stays/${B().stay.id}/checkout`, { note: co.note, photos: co.photos, reasons: co.reasons });
+      state.co = null; closeSheet();
+      state.coSent = r.sent && r.sent.length ? `Report emailed to ${r.sent.join(' and ')}.` : r.emailReady ? `Saved. Nobody is set up to get the report yet.` : `Saved. The owner will see it in Updates (email isn't switched on yet).`;
+      await loadDay(B().stay.id, state.dayDate); state.day.stayId = B().stay.id;
+      viewToday(new URLSearchParams()); toast('Checked out. Mahalo! 🐾');
+    } catch (e) { el.disabled = false; fail(e); }
+  },
+  shareDay: async () => {
+    syncCheckout();
+    try {
+      const blob = await dayImage();
+      const name = `dolce-${state.dayDate}.png`;
+      const file = new File([blob], name, { type: 'image/png' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: 'Today at home' }).catch(() => {}); return; }
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+      toast('Image saved');
+    } catch (e) { fail(e); }
+  },
   install: async () => { if (!installEvent) return; installEvent.prompt(); const r = await installEvent.userChoice.catch(() => null); installEvent = null; if (r && r.outcome === 'accepted') { toast('Added to your Home Screen'); const t = $('.installtip'); if (t) t.remove(); } },
   installHide: () => { try { localStorage.setItem('installTip', 'no'); } catch (e) {} const t = $('.installtip'); if (t) t.remove(); },
   pinHome: (el) => pinSheet(Number(el.dataset.id), el.dataset.name),
@@ -1011,6 +1175,14 @@ const A = {
 };
 
 const CHANGE = {
+  coPhotos: async (el) => {
+    const files = [...el.files]; if (!files.length) return;
+    syncCheckout();
+    for (const f of files.slice(0, 12 - state.co.photos.length)) {
+      try { state.co.photos.push(await uploadPhoto(f)); } catch (e) { fail(e); }
+    }
+    drawCheckout();
+  },
   stepPhoto: async (el) => { const f = el.files[0]; if (!f) return; syncDraft(); try { state.draft.steps[Number(el.dataset.i)].photo = await uploadPhoto(f); viewGuideEdit(state.draft.id); } catch (e) { fail(e); } },
   updPhoto: async (el) => {
     const f = el.files[0]; if (!f) return;
