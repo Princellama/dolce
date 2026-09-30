@@ -159,6 +159,29 @@ const PATCHES = [
             pin_hash = 'scrypt$d2a27cc66717cea97cc6268aad03d0e0$1aab09c7fd0aaa084cac8dc837d12147d8f4eedfbba9394f53d9290264bcc2a3'
           WHERE name = 'Milli & Reggie''s' AND pin_hash = ''`,
   },
+  {
+    key: '2026-09-29-kharis-sitter',
+    sql: `DO $$
+      DECLARE sid INT; uid INT;
+      BEGIN
+        SELECT id INTO sid FROM stays WHERE name = 'Milli & Reggie''s' ORDER BY id LIMIT 1;
+        IF sid IS NULL THEN RETURN; END IF;
+        SELECT id INTO uid FROM users WHERE email = 'kharis1092@icloud.com';
+        IF uid IS NULL THEN
+          -- If she already signed in with the PIN as "Kharis", give that account her email.
+          SELECT u.id INTO uid FROM users u JOIN members m ON m.user_id = u.id
+            WHERE m.stay_id = sid AND m.role = 'sitter' AND u.email LIKE '%@pin.invalid' AND lower(split_part(u.name, ' ', 1)) = 'kharis' LIMIT 1;
+          IF uid IS NOT NULL THEN
+            UPDATE users SET email = 'kharis1092@icloud.com', name = 'Kharis' WHERE id = uid;
+          ELSE
+            INSERT INTO users (email, name) VALUES ('kharis1092@icloud.com', 'Kharis') RETURNING id INTO uid;
+          END IF;
+        END IF;
+        INSERT INTO members (stay_id, user_id, role, morning_email, evening_report, phone)
+          VALUES (sid, uid, 'sitter', true, false, '808-382-3856')
+          ON CONFLICT (stay_id, user_id) DO UPDATE SET role = 'sitter', morning_email = true, phone = '808-382-3856';
+      END $$`,
+  },
 ];
 
 async function migrate() {
