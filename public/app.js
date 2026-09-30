@@ -60,6 +60,9 @@ const mapHref = (a) => 'https://www.google.com/maps/search/?api=1&query=' + enco
 
 // ---------- icons ----------
 const P = {
+  dog: '<path d="M7.3 6.8C5.9 4.9 3.4 5.2 2.8 7.6c-.5 2 .4 4.3 2.3 5.2"/><path d="M16.7 6.8c1.4-1.9 3.9-1.6 4.5.8.5 2-.4 4.3-2.3 5.2"/><path d="M12 5.3c3.4 0 6 2.4 6.3 6.2.3 4.3-2.5 8.8-6.3 8.8s-6.6-4.5-6.3-8.8C6 7.7 8.6 5.3 12 5.3z"/><path d="M9.6 11.3v.2M14.4 11.3v.2"/><path d="M10.6 15.1h2.8L12 16.6z"/><path d="M12 16.6v1.1"/>',
+  cat: '<path d="M4.6 3.8l3.3 3.9a8.6 8.6 0 0 1 8.2 0l3.3-3.9.7 7.3c.3.9.4 1.8.4 2.6 0 4-3.7 6.8-8.5 6.8s-8.5-2.8-8.5-6.8c0-.8.1-1.7.4-2.6z"/><path d="M9.3 12.3v.2M14.7 12.3v.2"/><path d="M11 15h2l-1 1.1z"/><path d="M2.5 14.6l4.2.5M2.9 17.5l4-.9M21.5 14.6l-4.2.5M21.1 17.5l-4-.9"/>',
+  plant: '<path d="M6.8 13.5h10.4l-1.4 6.6a1.2 1.2 0 0 1-1.2.9H9.4a1.2 1.2 0 0 1-1.2-.9z"/><path d="M12 13.5V8.5"/><path d="M12 9.8C12 6.6 9.4 4.4 5.6 4.4c0 3.4 2.6 5.4 6.4 5.4z"/><path d="M12 11.3c0-3 2.4-4.9 5.9-4.9 0 3.2-2.4 4.9-5.9 4.9z"/>',
   paw: '<path d="M12 21c-3.2 0-5.5-1.8-5.5-4.2 0-2.3 2.4-4.8 5.5-4.8s5.5 2.5 5.5 4.8C17.5 19.2 15.2 21 12 21z"/><ellipse cx="5" cy="10.5" rx="2" ry="2.6"/><ellipse cx="19" cy="10.5" rx="2" ry="2.6"/><ellipse cx="9" cy="5.5" rx="2" ry="2.6"/><ellipse cx="15" cy="5.5" rx="2" ry="2.6"/>',
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
   moon: '<path d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11z"/>',
@@ -96,7 +99,9 @@ const P = {
 };
 const icon = (n, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${P[n] || ''}</svg>`;
 const pawFill = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21.5c-3.4 0-5.9-1.9-5.9-4.4 0-2.5 2.6-5.1 5.9-5.1s5.9 2.6 5.9 5.1c0 2.5-2.5 4.4-5.9 4.4z"/><ellipse cx="4.6" cy="10.4" rx="2.3" ry="2.9"/><ellipse cx="19.4" cy="10.4" rx="2.3" ry="2.9"/><ellipse cx="8.8" cy="5" rx="2.3" ry="2.9"/><ellipse cx="15.2" cy="5" rx="2.3" ry="2.9"/></svg>`;
-const kindIcon = (k) => ({ dog: 'paw', cat: 'paw', plants: 'leaf', house: 'home' })[k] || 'grid';
+const kindIcon = (k) => ({ dog: 'dog', cat: 'cat', plants: 'plant', house: 'home' })[k] || 'paw';
+const kindCls = (k) => 'k-' + (['dog', 'cat', 'plants', 'house'].includes(k) ? k : 'other');
+const secChip = (kind, title) => title ? `<span class="chip ${kindCls(kind)}">${icon(kindIcon(kind))}${esc(title)}</span>` : '';
 
 // ---------- state & routing ----------
 const state = { me: null, stays: [], emailReady: false, bundle: null, day: null, dayDate: null, open: new Set(), draft: null, updates: null };
@@ -266,7 +271,7 @@ function taskRow(t, date, now) {
       <div class="body">
         <div class="title">${esc(t.title)}</div>
         <div class="meta"><span class="when">${esc(t.when)}${st.late ? ' · late' : ''}</span>
-          ${t.section_title ? `<span class="chip">${esc(t.section_title)}</span>` : ''}
+          ${secChip(t.section_kind, t.section_title)}
           ${t.recurring ? `<span class="chip accent">${icon('clock')}${esc(freq(t))}</span>` : ''}
           ${t.optional ? '<span class="chip">If needed</span>' : ''}
           ${t.guide_id ? `<span class="chip olive">${icon('book')}How-to</span>` : ''}
@@ -386,11 +391,11 @@ function viewCare(sectionId) {
   const guides = b.guides.filter((g) => g.section_id === sec.id && (g.steps.length || g.intro));
   const O = isOwner();
   const html = `
-    <div class="pagehead"><div class="grow"><div class="eyebrow">Care</div><h1>${esc(sec.title)}</h1></div>
+    <div class="pagehead"><span class="kbadge ${kindCls(sec.kind)}">${icon(kindIcon(sec.kind))}</span><div class="grow"><div class="eyebrow">Care</div><h1>${esc(sec.title)}</h1></div>
       ${O ? `<button class="btn small" data-act="editSection" data-id="${sec.id}">${icon('edit')} Edit section</button>` : ''}</div>
     <div class="segs">${segs}</div>
     ${pets.length || O ? `<div class="pets">${pets.map((p) => `<div class="card pet">
-        <div class="avatar">${p.photo ? `<img src="${esc(p.photo)}" alt="" data-zoom>` : esc(p.name[0] || '?')}</div>
+        <div class="avatar ${p.photo ? '' : kindCls(sec.kind)}">${p.photo ? `<img src="${esc(p.photo)}" alt="" data-zoom>` : icon(kindIcon(sec.kind))}</div>
         <div class="grow"><h3>${esc(p.name)}</h3><p>${esc(p.description)}</p>
         ${O ? `<button class="btn small ghost" style="margin:6px 0 0 -10px" data-act="editPet" data-id="${p.id}">${icon('edit')} Edit</button>` : ''}</div>
       </div>`).join('')}
@@ -421,7 +426,7 @@ function guideCard(g) {
   const ph = g.steps.find((s) => s.photo);
   const sec = B().sections.find((x) => x.id === g.section_id);
   return `<a class="card gcard ${g.steps.length ? '' : 'suggested'}" href="${stayUrl('guide/' + g.id + (g.steps.length || !isOwner() ? '' : '/edit'))}" data-title="${esc((g.title + ' ' + g.intro + ' ' + g.steps.map((s) => s.text).join(' ')).toLowerCase())}">
-    <span class="gthumb">${ph ? `<img src="${esc(ph.photo)}" alt="" loading="lazy">` : icon(sec ? kindIcon(sec.kind) : 'book')}</span>
+    <span class="gthumb ${ph || !sec ? '' : kindCls(sec.kind)}">${ph ? `<img src="${esc(ph.photo)}" alt="" loading="lazy">` : icon(sec ? kindIcon(sec.kind) : 'book')}</span>
     <span class="grow"><b>${esc(g.title)}</b><span class="muted">${g.steps.length ? `${g.steps.length} step${g.steps.length > 1 ? 's' : ''}${sec ? ' · ' + esc(sec.title) : ''}` : 'Add steps and photos'}</span></span>
   </a>`;
 }
@@ -458,7 +463,7 @@ function viewGuide(id) {
   const sec = B().sections.find((x) => x.id === g.section_id);
   const html = `<div class="guide-wrap">
     <div style="margin:6px 0 0"><a class="btn small ghost" style="margin-left:-10px" href="javascript:history.back()">${icon('left')} Back</a></div>
-    <div class="pagehead" style="margin-top:4px"><div class="grow">${sec ? `<div class="eyebrow">${esc(sec.title)}</div>` : ''}<h1>${esc(g.title)}</h1></div>
+    <div class="pagehead" style="margin-top:4px"><div class="grow">${sec ? `<div style="margin-bottom:8px">${secChip(sec.kind, sec.title)}</div>` : ''}<h1>${esc(g.title)}</h1></div>
       ${isOwner() ? `<div class="editbar"><a class="btn small" href="${stayUrl(`guide/${g.id}/edit`)}">${icon('edit')} Edit</a></div>` : ''}</div>
     ${g.intro ? `<p style="font-size:17px;color:var(--ink-2);margin:-6px 0 16px">${esc(g.intro)}</p>` : ''}
     <div class="card pad"><ol class="steps">${g.steps.map((s) => `<li class="step ${s.warning ? 'warning' : ''}"><span class="n"></span><div>

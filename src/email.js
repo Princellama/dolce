@@ -23,17 +23,17 @@ async function send({ to, subject, html, text }) {
 }
 
 function shell(title, body) {
-  return `<!doctype html><html><body style="margin:0;background:#f6f0e6;font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#2b211b">
+  return `<!doctype html><html><body style="margin:0;background:#f2f6f4;font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#15302c">
 <div style="max-width:560px;margin:0 auto;padding:24px 16px">
-  <div style="font-family:Georgia,serif;font-size:22px;color:#b4532a;margin-bottom:4px">The Dolce Life</div>
-  <div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#8a7a6c;margin-bottom:20px">${esc(title)}</div>
-  <div style="background:#fffdf8;border-radius:14px;padding:20px;border:1px solid #eadfce">${body}</div>
-  <div style="font-size:12px;color:#8a7a6c;margin-top:16px">You get this because you're part of a stay on The Dolce Life. The owner can turn these emails off in Settings.</div>
+  <div style="font-family:Georgia,serif;font-size:22px;color:#1b7a72;margin-bottom:4px">The Dolce Life</div>
+  <div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#6c827d;margin-bottom:20px">${esc(title)}</div>
+  <div style="background:#ffffff;border-radius:14px;padding:20px;border:1px solid #dbe6e1">${body}</div>
+  <div style="font-size:12px;color:#6c827d;margin-top:16px">You get this because you're part of a stay on The Dolce Life. The owner can turn these emails off in Settings.</div>
 </div></body></html>`;
 }
 
 const button = (href, label) =>
-  `<a href="${href}" style="display:inline-block;background:#b4532a;color:#fff;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:600">${esc(label)}</a>`;
+  `<a href="${href}" style="display:inline-block;background:#1b7a72;color:#fff;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:600">${esc(label)}</a>`;
 
 async function loginEmail(user, token) {
   const link = `${APP_URL()}/l/${token}`;
@@ -42,7 +42,7 @@ async function loginEmail(user, token) {
     subject: 'Your sign-in link for The Dolce Life',
     text: `Tap to sign in: ${link}\nThis link works for 30 days.`,
     html: shell('Sign in', `<p style="margin-top:0">Hi${user.name ? ' ' + esc(user.name.split(' ')[0]) : ''}, tap below to sign in.</p>
-      <p>${button(link, 'Open The Dolce Life')}</p><p style="font-size:13px;color:#8a7a6c">This link works for 30 days on this device.</p>`),
+      <p>${button(link, 'Open The Dolce Life')}</p><p style="font-size:13px;color:#6c827d">This link works for 30 days on this device.</p>`),
   });
   return link;
 }
@@ -66,11 +66,11 @@ function taskRows(tasks) {
   return groups.map(([k, label]) => {
     const list = tasks.filter((t) => t.part === k);
     if (!list.length) return '';
-    return `<div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#8a7a6c;margin:16px 0 6px">${label}</div>` +
-      list.map((t) => `<div style="padding:8px 0;border-top:1px solid #f0e6d8">
-        <div style="font-weight:600">${t.done ? '✅ ' : ''}${esc(t.title)}${t.recurring ? ' <span style="font-size:11px;color:#b4532a;border:1px solid #e8c3ae;border-radius:6px;padding:1px 5px">today</span>' : ''}</div>
-        <div style="font-size:13px;color:#8a7a6c">${esc(t.when)}${t.section_title ? ' · ' + esc(t.section_title) : ''}</div>
-        ${t.warning ? `<div style="font-size:13px;color:#a23a1c;margin-top:4px">⚠ ${esc(t.warning)}</div>` : ''}
+    return `<div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#6c827d;margin:16px 0 6px">${label}</div>` +
+      list.map((t) => `<div style="padding:8px 0;border-top:1px solid #e4ede9">
+        <div style="font-weight:600">${t.done ? '✅ ' : ''}${esc(t.title)}${t.recurring ? ' <span style="font-size:11px;color:#1b7a72;border:1px solid #a9d8d1;border-radius:6px;padding:1px 5px">today</span>' : ''}</div>
+        <div style="font-size:13px;color:#6c827d">${esc(t.when)}${t.section_title ? ' · ' + esc(t.section_title) : ''}</div>
+        ${t.warning ? `<div style="font-size:13px;color:#93440f;margin-top:4px">⚠ ${esc(t.warning)}</div>` : ''}
       </div>`).join('');
   }).join('');
 }
@@ -107,14 +107,14 @@ async function eveningReport(stay, user, date) {
   const body = `
     <p style="margin-top:0;font-size:17px"><b>${done.length} of ${tasks.length}</b> things done today.</p>
     ${arrivals.length ? `<p>🏠 Visits: ${arrivals.map((a) => `${t(a.created_at)}${a.name ? ' (' + esc(a.name.split(' ')[0]) + ')' : ''}`).join(', ')}</p>` : '<p>🏠 No visits checked in today.</p>'}
-    ${notes.map((n) => `<div style="padding:10px 0;border-top:1px solid #f0e6d8">
-      <div style="font-size:13px;color:#8a7a6c">${esc(n.name ? n.name.split(' ')[0] : 'Sitter')} · ${t(n.created_at)}</div>
+    ${notes.map((n) => `<div style="padding:10px 0;border-top:1px solid #e4ede9">
+      <div style="font-size:13px;color:#6c827d">${esc(n.name ? n.name.split(' ')[0] : 'Sitter')} · ${t(n.created_at)}</div>
       ${n.text ? `<div style="margin-top:4px">${esc(n.text)}</div>` : ''}
       ${n.photo ? `<img src="${APP_URL()}${n.photo}" alt="" style="margin-top:8px;max-width:100%;border-radius:10px">` : ''}
     </div>`).join('')}
-    ${done.length ? `<div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#8a7a6c;margin:16px 0 6px">Done</div>
-      ${done.map((x) => `<div style="padding:4px 0">✅ ${esc(x.title)} <span style="color:#8a7a6c;font-size:13px">${t(x.done_at)}</span></div>`).join('')}` : ''}
-    ${open.length ? `<div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#8a7a6c;margin:16px 0 6px">Not checked off</div>
+    ${done.length ? `<div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#6c827d;margin:16px 0 6px">Done</div>
+      ${done.map((x) => `<div style="padding:4px 0">✅ ${esc(x.title)} <span style="color:#6c827d;font-size:13px">${t(x.done_at)}</span></div>`).join('')}` : ''}
+    ${open.length ? `<div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#6c827d;margin:16px 0 6px">Not checked off</div>
       ${open.map((x) => `<div style="padding:4px 0">○ ${esc(x.title)}</div>`).join('')}` : ''}
     <p style="margin-top:20px">${button(`${APP_URL()}/#/s/${stay.id}/updates`, 'See updates')}</p>`;
   await send({
