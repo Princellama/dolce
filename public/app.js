@@ -822,16 +822,16 @@ function pinSheet(id, name) {
 }
 function drawPin() {
   const p = state.pin;
-  if (p.step === 'name') {
-    let saved = ''; try { saved = localStorage.getItem('pinName') || ''; } catch (e) {}
-    openSheet(p.name, `<form id="pinname" class="form">
-        <p style="margin:0">PIN accepted. What's your first name? It shows next to what you check off.</p>
-        <label class="f"><span>Your first name</span><input class="in" name="name" value="${esc(saved)}" required autocomplete="given-name" maxlength="60"></label>
-        ${p.error ? `<div class="warn">${icon('alert')}<span>${esc(p.error)}</span></div>` : ''}
-      </form>`, `<span class="grow"></span><button class="btn primary" data-act="pinName">Continue</button>`);
+  if (p.step === 'who') {
+    const list = p.sitters || [];
+    openSheet(p.name, `<p style="margin:0 0 14px">${list.length ? 'PIN accepted. Who are you?' : "PIN accepted. What's your first name? It shows next to what you check off."}</p>
+      ${list.length ? `<div class="stack">${list.map((x) => `<button class="card homebtn" data-act="pinWho" data-uid="${x.id}"><span class="kbadge k-cat">${icon('key')}</span><span class="grow"><b>I'm ${esc(x.name)}</b></span>${icon('right')}</button>`).join('')}</div>
+        <p class="small muted" style="margin:16px 0 8px">Someone else? Type your first name:</p>` : ''}
+      <form id="pinname" class="row"><input class="in" name="name" placeholder="First name" autocomplete="given-name" maxlength="60" ${list.length ? '' : 'required'}><button class="btn ${list.length ? '' : 'primary'}" type="submit">Continue</button></form>
+      ${p.error ? `<div class="warn" style="margin-top:12px">${icon('alert')}<span>${esc(p.error)}</span></div>` : ''}`);
     const f = $('#pinname');
-    f.addEventListener('submit', (e) => { e.preventDefault(); A.pinName(); });
-    setTimeout(() => f.name.focus(), 50);
+    f.addEventListener('submit', (e) => { e.preventDefault(); const v = f.name.value.trim(); if (v) pinSubmit({ name: v }); });
+    if (!list.length) setTimeout(() => f.name.focus(), 50);
     return;
   }
   const dots = Array.from({ length: Math.max(4, p.digits.length) }, (_, i) => `<span class="${i < p.digits.length ? 'on' : ''}"></span>`).join('');
@@ -844,14 +844,12 @@ function drawPin() {
       : `<button data-act="pinKey" data-k="${k}">${k}</button>`).join('')}</div>`,
     `<button class="btn primary block" data-act="pinGo" ${p.digits.length >= 4 ? '' : 'disabled'}>${icon('key')} Unlock</button>`);
 }
-async function pinSubmit(name) {
+async function pinSubmit(who = {}) {
   const p = state.pin;
-  const body = { stay_id: p.id, pin: p.digits };
-  if (name) body.name = name;
+  const body = { stay_id: p.id, pin: p.digits, ...who };
   try {
     const r = await api('POST', '/api/pin-login', body);
-    if (r.needName) { p.step = 'name'; p.error = ''; return drawPin(); }
-    try { localStorage.setItem('pinName', name); } catch (e) {}
+    if (r.needWho) { p.step = 'who'; p.sitters = r.sitters; p.error = ''; return drawPin(); }
     closeSheet(); state.pin = null; state.me = null; state.bundle = null; state.day = null;
     await loadMe(); go(`#/s/${r.stay_id}/today`);
   } catch (e) {
@@ -878,7 +876,7 @@ const A = {
     p.error = ''; drawPin();
   },
   pinGo: () => pinSubmit(),
-  pinName: () => { const v = $('#pinname').name.value.trim(); if (v) pinSubmit(v); },
+  pinWho: (el) => pinSubmit({ user_id: Number(el.dataset.uid) }),
   theme: toggleTheme,
   closeSheet,
   sheetBg: (el, e) => { if (e.target === el) closeSheet(); },

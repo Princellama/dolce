@@ -117,6 +117,7 @@ function checkPin(pin, stored) {
   const a = crypto.scryptSync(String(pin), salt, 32), b = Buffer.from(hash, 'hex');
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
+const first = (n) => String(n || '').trim().split(/\s+/)[0];
 function publicStay(s) { const { pin_hash, ...rest } = s; return { ...rest, has_pin: !!pin_hash }; }
 
 // Slow down PIN guessing: 6 wrong tries per home per device-address, then a 15-minute wait.
@@ -142,15 +143,25 @@ app.post('/api/pin-login', wrap(async (req, res) => {
   if (pinLocked(key)) return res.status(429).json({ error: 'Too many wrong tries. Wait 15 minutes and try again.' });
   if (!checkPin(req.body.pin, stay.pin_hash)) { pinFailed(key); return res.status(403).json({ error: "That PIN didn't work.", wrongPin: true }); }
   pinTries.delete(key);
+  // The sitters the owner added (by email). PIN sign-in uses them, so nobody has to type a name.
+  const roster = await all(
+    `SELECT u.id, u.name FROM members m JOIN users u ON u.id=m.user_id
+      WHERE m.stay_id=$1 AND m.role='sitter' AND u.email NOT LIKE '%@pin.invalid' ORDER BY u.name`, [stay.id]);
   const name = String(req.body.name || '').trim().slice(0, 60);
-  if (!name) return res.json({ ok: true, needName: true });
-  // Match someone already on this stay by first name, otherwise add them as a sitter.
-  const members = await all(`SELECT u.*, m.role FROM members m JOIN users u ON u.id=m.user_id WHERE m.stay_id=$1`, [stay.id]);
-  const fn = (s) => String(s || '').trim().split(/\s+/)[0].toLowerCase();
-  let u = members.find((m) => m.role === 'sitter' && fn(m.name) === fn(name));
+  let u = null;
+  if (req.body.user_id) u = roster.find((r) => r.id === Number(req.body.user_id));
+  else if (!name && roster.length === 1) u = roster[0];
+  if (!u && !name) {
+    return res.json({ ok: true, needWho: true, sitters: roster.map((r) => ({ id: r.id, name: first(r.name) || 'Sitter' })) });
+  }
   if (!u) {
-    u = await one('INSERT INTO users (email,name) VALUES ($1,$2) RETURNING *', [`pin-${stay.id}-${crypto.randomBytes(6).toString('hex')}@pin.invalid`, name]);
-    await q(`INSERT INTO members (stay_id,user_id,role,morning_email,evening_report) VALUES ($1,$2,'sitter',false,false)`, [stay.id, u.id]);
+    // "Someone else": reuse a PIN sitter with the same first name, otherwise add one.
+    const pinned = await all(`SELECT u.* FROM members m JOIN users u ON u.id=m.user_id WHERE m.stay_id=$1 AND m.role='sitter'`, [stay.id]);
+    u = pinned.find((m) => first(m.name).toLowerCase() === first(name).toLowerCase());
+    if (!u) {
+      u = await one('INSERT INTO users (email,name) VALUES ($1,$2) RETURNING *', [`pin-${stay.id}-${crypto.randomBytes(6).toString('hex')}@pin.invalid`, name]);
+      await q(`INSERT INTO members (stay_id,user_id,role,morning_email,evening_report) VALUES ($1,$2,'sitter',false,false)`, [stay.id, u.id]);
+    }
   }
   await startSession(res, u.id);
   res.json({ ok: true, stay_id: stay.id });
