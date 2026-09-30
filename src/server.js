@@ -328,7 +328,7 @@ const cleanPhoto = (p) => (typeof p === 'string' && /^\/u\/[A-Za-z0-9_-]+\.(jpg|
 const KINDS = {
   sections: { table: 'sections', fields: { kind: 's', title: 's', notes: 's', sort: 'i' } },
   pets: { table: 'pets', fields: { section_id: 'ref', name: 's', description: 's', photo: 'p', sort: 'i' } },
-  tasks: { table: 'tasks', fields: { section_id: 'ref', title: 's', details: 's', warning: 's', time_start: 't', time_end: 't', time_label: 's', every_n: 'i', first_day: 'i', guide_id: 'ref', optional: 'b', sort: 'i' } },
+  tasks: { table: 'tasks', fields: { section_id: 'ref', title: 's', details: 's', warning: 's', time_start: 't', time_end: 't', time_label: 's', every_n: 'i', first_day: 'i', guide_id: 'ref', optional: 'b', photos: 'photos', sort: 'i' } },
   guides: { table: 'guides', fields: { section_id: 'ref', title: 's', intro: 's', sort: 'i' } },
   contacts: { table: 'contacts', fields: { name: 's', role: 's', phone: 's', email: 's', address: 's', notes: 's', emergency: 'b', sort: 'i' } },
 };
@@ -337,6 +337,7 @@ function cleanVal(type, v) {
   if (type === 'b') return !!v;
   if (type === 'ref') return v ? Number(v) : null;
   if (type === 'p') return cleanPhoto(v);
+  if (type === 'photos') return JSON.stringify((Array.isArray(v) ? v : []).map(cleanPhoto).filter(Boolean).slice(0, 12));
   if (type === 't') return /^\d{2}:\d{2}$/.test(v || '') ? v : '';
   return String(v ?? '').slice(0, 8000);
 }

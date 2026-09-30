@@ -96,6 +96,7 @@ const P = {
   leaf: '<path d="M5 19c0-8 5-13.5 15-14-0.5 10-6 15-14 15"/><path d="M5 19l7-7"/>',
   grid: '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
   send: '<path d="M4 12l16-8-6 16-2.5-6.5z"/>',
+  help: '<circle cx="12" cy="12" r="8.5"/><path d="M9.6 9.4a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.2-2.4 3.7M12 17v.01"/>',
   cal: '<rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M8 3v4M16 3v4M3.5 10h17M12 13v5M9.5 15.5h5"/>',
   copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-9A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16H8"/>',
 };
@@ -158,6 +159,7 @@ function shell(active, html, opts = {}) {
   return `<div class="shell">
     <aside class="side">${brand}<nav>${nav}<a href="${stayUrl('settings')}" class="${active === 'settings' ? 'on' : ''}">${icon('gear')}<span>Settings</span></a></nav>
       <div class="foot">
+        <a href="${stayUrl('help')}" class="${active === 'help' ? 'on' : ''}">${icon('help')}<span>How to use</span></a>
         ${multi ? `<a href="#/">${icon('grid')}<span>All stays</span></a>` : ''}
         <button data-act="theme">${themeIcon()}<span>Light / dark</span></button>
       </div>
@@ -199,6 +201,7 @@ async function render() {
     if (page === 'contacts') return viewContacts();
     if (page === 'updates') return viewUpdates();
     if (page === 'settings') return viewSettings();
+    if (page === 'help') return viewHelp();
     return go(stayUrl());
   } catch (e) {
     if (state.me) mount(`<div class="login"><div class="box card pad"><h2>Hmm.</h2><p>${esc(e.message)}</p><a class="btn" href="#/">Back</a></div></div>`);
@@ -308,11 +311,16 @@ function taskState(t, date, now) {
   return { late: isToday && !t.done && ends && ends < now.time };
 }
 
+function taskPhotos(t) {
+  const list = t.photos || [];
+  return list.length ? `<div class="taskphotos">${list.map((p) => `<img src="${esc(p)}" alt="Photo for ${esc(t.title)}" loading="lazy" data-zoom>`).join('')}</div>` : '';
+}
+
 function taskRow(t, date, now) {
   const st = taskState(t, date, now);
   const open = state.open.has(t.id);
   const tz = B().stay.tz;
-  const hasMore = t.details || t.guide_id || isOwner();
+  const hasMore = t.details || t.guide_id || (t.photos || []).length || isOwner();
   return `<div class="task ${t.done ? 'done' : ''} ${st.late ? 'late' : ''} ${open ? 'open' : ''}" id="task-${t.id}">
     <div class="top" ${hasMore ? `data-act="openTask" data-id="${t.id}"` : ''}>
       <button class="check" data-act="check" data-id="${t.id}" aria-pressed="${t.done}" aria-label="${t.done ? 'Mark not done' : 'Mark done'}: ${esc(t.title)}">${icon('check')}</button>
@@ -323,6 +331,7 @@ function taskRow(t, date, now) {
           ${t.recurring ? `<span class="chip accent">${icon('clock')}${esc(freq(t))}</span>` : ''}
           ${t.optional ? '<span class="chip">If needed</span>' : ''}
           ${t.guide_id ? `<span class="chip olive">${icon('book')}How-to</span>` : ''}
+          ${(t.photos || []).length ? `<span class="chip">${icon('camera')}${t.photos.length}</span>` : ''}
         </div>
         ${t.warning && !t.done ? `<div class="warn">${icon('alert')}<span>${esc(t.warning)}</span></div>` : ''}
         ${t.done && t.done_at ? `<div class="done-by">Done ${clock(t.done_at, tz)}${t.done_by_name ? ' by ' + esc(first(t.done_by_name)) : ''}</div>` : ''}
@@ -331,9 +340,10 @@ function taskRow(t, date, now) {
     </div>
     ${hasMore ? `<div class="more">
       ${t.details ? `<p>${esc(t.details)}</p>` : ''}
+      ${taskPhotos(t)}
       <div class="actions">
         ${t.guide_id ? `<a class="btn small" href="${stayUrl('guide/' + t.guide_id)}">${icon('book')} ${esc(t.guide_title || 'How-to')}</a>` : ''}
-        ${isOwner() ? `<button class="btn small ghost" data-act="editTask" data-id="${t.id}">${icon('edit')} Edit</button>` : ''}
+        ${isOwner() ? `<button class="btn small ghost" data-act="taskPhotoAdd" data-id="${t.id}">${icon('camera')} ${(t.photos || []).length ? 'Photos' : 'Add photo'}</button><button class="btn small ghost" data-act="editTask" data-id="${t.id}">${icon('edit')} Edit</button>` : ''}
       </div></div>` : ''}
   </div>`;
 }
@@ -471,6 +481,7 @@ function viewCare(sectionId) {
         <div class="what"><b>${esc(t.title)}</b>
           ${t.warning ? `<div class="warn" style="margin-top:6px">${icon('alert')}<span>${esc(t.warning)}</span></div>` : ''}
           ${t.details ? `<p>${esc(t.details)}</p>` : ''}
+          ${taskPhotos(t)}
           ${t.next_due ? `<p class="small" style="color:var(--accent-text)">Next: ${shortDate(t.next_due)}</p>` : ''}
           <div class="row wrap" style="margin-top:6px;gap:6px">
             ${t.guide_id ? `<a class="btn small" href="${stayUrl('guide/' + t.guide_id)}">${icon('book')} How-to</a>` : ''}
@@ -705,6 +716,7 @@ function viewSettings() {
     </div>`;
   const html = `<div class="pagehead"><div class="grow"><div class="eyebrow">${esc(s.name)}</div><h1>Settings</h1></div></div>
     <div class="settings-grid">
+      <a class="card homebtn" href="${stayUrl('help')}"><span class="kbadge k-house">${icon('help')}</span><span class="grow"><b>How to use The Dolce Life</b><span class="muted small">${O ? 'Setting up your home, photos, PINs, check-outs and emails.' : 'Checking things off, check-out, calendar and more.'}</span></span>${icon('right')}</a>
       ${O ? ownerHtml : `<div class="card pad"><h2>The stay</h2><p class="desc">${s.start_date ? `${fmtDate(s.start_date)} at ${fmtTime(s.start_time)} to ${fmtDate(s.end_date)} at ${fmtTime(s.end_time)}.` : 'Dates not set yet.'}</p>
         <p class="small muted" style="margin:0">Morning email at ${fmtTime(s.email_time)}. Ask the owner to change your email settings.</p></div>`}
       <form class="card pad form" id="meform">
@@ -732,6 +744,36 @@ function viewSettings() {
   });
 }
 
+// ----- how to use -----
+function viewHelp() {
+  const O = isOwner(), s = B().stay;
+  const step = (ic, cls, title, body, link) => `<section class="card pad helpcard"><div class="row" style="align-items:flex-start;gap:14px">
+      <span class="kbadge ${cls}">${icon(ic)}</span><div class="grow"><h2>${title}</h2>${body}${link ? `<div style="margin-top:10px">${link}</div>` : ''}</div></div></section>`;
+  const go = (page, label) => `<a class="btn small" href="${stayUrl(page)}">${label} ${icon('right')}</a>`;
+  const owner = [
+    step('home', 'k-house', '1. Set the basics', `<p>In <b>Settings</b>, fill in the dates you're away and the times the sitter starts and you're back. The dates drive everything: "Day 3 of 19", what's due each day, and when emails start and stop.</p><p>Add your <b>home address</b> too. It shows on Contacts and the Emergency button so the sitter can give it to a vet or 911. It never goes in emails.</p>`, go('settings', 'Open Settings')),
+    step('dog', 'k-dog', '2. Build the routine', `<p>Open <b>Care</b> and pick a section: a pet, Cats, Plants or House. Under <b>Routine</b>, tap <b>Add</b> for each thing that needs doing.</p><ul class="lines"><li><b>Time:</b> a time or a window ("5:30–6 PM"). Leave it empty for "anytime".</li><li><b>How often:</b> every day, every 2 or 3 days, or weekly. "First time on day #" sets which day it starts.</li><li><b>Warning:</b> anything they must not miss shows in orange ("Hold her up at the curb").</li><li><b>Photos:</b> add pictures right on the to-do: which plants to water, where the food is.</li><li><b>How-to guide:</b> link a step-by-step guide so it's one tap away.</li></ul>`, go('care', 'Open Care')),
+    step('camera', 'k-cat', '3. Add photos', `<p>Sitters do better with pictures. You can add photos in three places:</p><ul class="lines"><li><b>On a to-do:</b> open it on Today and tap <b>Add photo</b>, or add them while editing it.</li><li><b>In a guide:</b> one photo per step: the dial on the washer, the lid on the feeder.</li><li><b>On a pet:</b> so the sitter knows which cat is which.</li></ul><p class="small muted">Take them with your phone right in the app. They're resized automatically.</p>`),
+    step('book', 'k-plants', '4. Write the house guides', `<p><b>Guides</b> is your house manual, kept out of the daily list so Today stays simple. Each guide is a few short steps, each with an optional photo. Mark a step <b>Important</b> to highlight it.</p><p>The <b>Still to fill in</b> list suggests the usual ones (Wi-Fi, stove, trash day, breaker box, hurricane plan). Only you see those until they have steps. Delete any that don't apply.</p>`, go('guides', 'Open Guides')),
+    step('phone', 'k-house', '5. Contacts and emergencies', `<p>Add the people the sitter might need: vets, neighbors, the pool guy, the plumber, you. Tick <b>Emergency contact</b> for vets and anyone urgent. They show first and on the red <b>Emergency</b> button at the top of every screen.</p>`, go('contacts', 'Open Contacts')),
+    step('key', 'k-cat', '6. Invite your sitter', `<p>In <b>Settings → People</b>, tap <b>Add</b> and enter your sitter's name, email and phone as a <b>Sitter</b>. They get the morning email. Add a partner or family member as an <b>Owner</b> to share editing and the reports.</p><p>Then choose how they sign in:</p><ul class="lines"><li><b>PIN (easiest):</b> in Settings, turn on <b>Show this home on the sign-in screen</b> and set a PIN. Your sitter taps your home and enters it. A PIN only lets someone check things off and post updates. It can never change your setup.</li><li><b>Sign-in link:</b> tap <b>Sign-in link</b> next to their name and text it to them.</li></ul>`, go('settings', 'Add your sitter')),
+    step('mail', 'k-dog', '7. What you\'ll get while you\'re away', `<ul class="lines"><li><b>Each morning</b> (${fmtTime(s.email_time)}): the day's list, the same one your sitter gets. Turn it off in Settings → People if you'd rather not.</li><li><b>When your sitter checks out:</b> an email right away with their note, their photos, what got done and when, and why anything was skipped. Reply to it to answer them directly.</li><li><b>If nobody checks out</b> by ${fmtTime(s.report_time)}: a report anyway, marked "No check-out today", so you're never left wondering.</li><li><b>Updates</b> tab: every check-in, note and photo, any time.</li></ul>`, go('updates', 'Open Updates')),
+  ];
+  const sitter = [
+    step('today', 'k-dog', 'Today', `<p>Everything due today, in order: morning, afternoon, evening, then anything that's "anytime". Tap a to-do to see details, photos and the how-to guide. Tap the circle to check it off. The owner sees what's done and when.</p><p>Use the arrows at the top to look at other days.</p>`, go('today', 'Open Today')),
+    step('key', 'k-cat', 'I\'m here', `<p>Tap <b>I'm here</b> whenever you arrive. It shows the arrival routine and lets the owner know you came by.</p>`),
+    step('out', 'k-plants', 'Check out for today', `<p>At the end of the day, tap <b>Check out for today</b>. Say how it went, add photos, and note anything you couldn't get to. It goes straight to the owner. <b>Share as image</b> makes a picture of the day you can text.</p>`),
+    step('book', 'k-house', 'Guides and Contacts', `<p><b>Guides</b> has step-by-step instructions with photos: the feeder, the hose, the stove. <b>Contacts</b> has everyone to call. The red <b>Emergency</b> button at the top is always one tap away.</p>`),
+    step('cal', 'k-dog', 'Calendar and Home Screen', `<p>The calendar button next to the date adds every timed to-do to your phone's calendar, with a reminder 10 minutes before. To open Dolce like an app, add it to your Home Screen: on iPhone, tap Share, then <b>Add to Home Screen</b>.</p>`),
+  ];
+  mount(shell('help', `<div class="guide-wrap">
+    <div class="pagehead"><div class="grow"><div class="eyebrow">${O ? 'For owners' : 'For sitters'}</div><h1>How to use The Dolce Life</h1></div></div>
+    <p style="font-size:17px;color:var(--ink-2);margin:-6px 0 18px">${O ? 'Set up your home once. Your sitter gets a simple checklist every day, and you get a report every evening.' : 'Everything you need to look after the home, one day at a time.'}</p>
+    <div class="stack">${(O ? owner : sitter).join('')}</div>
+    ${O ? `<details class="card pad" style="margin-top:12px"><summary style="cursor:pointer;font-weight:600">What your sitter sees</summary><div class="stack" style="margin-top:12px">${sitter.join('')}</div></details>` : ''}
+  </div>`));
+}
+
 // ---------- sheets & forms ----------
 function closeSheet() { $('#sheet-root').innerHTML = ''; document.body.style.overflow = ''; if (state.pin && !state.pinKeep) state.pin = null; }
 function openSheet(title, body, foot = '') {
@@ -747,6 +789,14 @@ function field(f, v) {
   if (f.type === 'checkbox') return `<label class="toggle"><input type="checkbox" name="${f.name}" ${val ? 'checked' : ''}> ${esc(f.label)}</label>`;
   if (f.type === 'textarea') return `<label class="f"><span>${esc(f.label)}</span><textarea class="in" name="${f.name}" placeholder="${esc(f.placeholder || '')}">${esc(val)}</textarea>${hint}</label>`;
   if (f.type === 'select') return `<label class="f"><span>${esc(f.label)}</span><select class="in" name="${f.name}">${f.options.map(([ov, ol]) => `<option value="${esc(ov)}" ${String(ov) === String(val ?? '') ? 'selected' : ''}>${esc(ol)}</option>`).join('')}</select>${hint}</label>`;
+  if (f.type === 'photos') {
+    const list = Array.isArray(val) ? val : [];
+    return `<div class="f" data-photos="${f.name}"><span style="display:block;font-size:13.5px;font-weight:600;color:var(--ink-2);margin-bottom:6px">${esc(f.label)}</span>
+      <input type="hidden" name="${f.name}" value="${esc(JSON.stringify(list))}">
+      <div class="cophotos">${list.map((p, i) => `<span class="cothumb"><img src="${esc(p)}" alt=""><button type="button" data-act="formPhotoDel" data-name="${f.name}" data-i="${i}" aria-label="Remove photo">${icon('x')}</button></span>`).join('')}
+      <label class="btn small">${icon('camera')} ${list.length ? 'Add more' : 'Add photos'}<input type="file" accept="image/*" multiple data-act-change="formPhotos" data-name="${f.name}" hidden></label></div>
+      ${f.hint ? `<small style="display:block;font-size:12.5px;color:var(--muted);margin-top:5px">${esc(f.hint)}</small>` : ''}</div>`;
+  }
   if (f.type === 'photo') return `<div class="f"><span style="display:block;font-size:13.5px;font-weight:600;color:var(--ink-2);margin-bottom:6px">${esc(f.label)}</span>
     <input type="hidden" name="${f.name}" value="${esc(val)}"><div class="row"><span class="avatar" data-photo-preview>${val ? `<img src="${esc(val)}" alt="">` : icon('camera')}</span>
     <label class="btn small">${icon('camera')} Choose photo<input type="file" accept="image/*" data-act-change="formPhoto" data-name="${f.name}" hidden></label></div></div>`;
@@ -765,7 +815,7 @@ function openForm({ title, fields, values = {}, submit = 'Save', onSubmit, onDel
     for (const f of flat) {
       const el = form.elements[f.name];
       if (!el) continue;
-      out[f.name] = f.type === 'checkbox' ? el.checked : f.type === 'number' ? Number(el.value || 0) : el.value;
+      out[f.name] = f.type === 'checkbox' ? el.checked : f.type === 'number' ? Number(el.value || 0) : f.type === 'photos' ? JSON.parse(el.value || '[]') : el.value;
     }
     return out;
   };
@@ -806,6 +856,7 @@ function taskForm(t = {}, sectionId) {
         { name: 'every_n', label: 'How often', type: 'select', options: [[1, 'Every day'], [2, 'Every 2 days'], [3, 'Every 3 days'], [4, 'Every 4 days'], [7, 'Once a week']] },
         { name: 'first_day', label: 'First time on day #', type: 'number', min: 1 }] },
       { name: 'details', label: 'Details', type: 'textarea', placeholder: 'How, where, how much…' },
+      { name: 'photos', label: 'Photos', type: 'photos', hint: 'Which plants, where the food is, what the bowl looks like. The sitter sees them when they open this to-do.' },
       { name: 'warning', label: 'Important warning (shown in orange)', type: 'textarea' },
       { name: 'guide_id', label: 'Link a how-to guide', type: 'select', options: guideOpts() },
       { name: 'optional', label: 'Only if needed', type: 'checkbox' },
@@ -991,6 +1042,12 @@ document.addEventListener('keydown', (e) => {
 
 // ---------- actions ----------
 const A = {
+  formPhotoDel: (el) => {
+    const name = el.dataset.name, input = $('#sheetform').elements[name];
+    const list = JSON.parse(input.value || '[]'); list.splice(Number(el.dataset.i), 1);
+    redrawPhotosField(name, list);
+  },
+  taskPhotoAdd: (el) => { const t = B().tasks.find((x) => x.id === Number(el.dataset.id)); taskForm(t); setTimeout(() => { const i = document.querySelector('[data-act-change=formPhotos]'); if (i) i.click(); }, 150); },
   calendar: async () => {
     try {
       const r = await api('POST', `/api/stays/${B().stay.id}/calendar-link`);
@@ -1174,7 +1231,20 @@ const A = {
   },
 };
 
+function redrawPhotosField(name, list) {
+  const wrap = $(`[data-photos="${name}"]`); if (!wrap) return;
+  const tmp = document.createElement('div');
+  tmp.innerHTML = field({ name, label: wrap.querySelector('span').textContent, type: 'photos', hint: (wrap.querySelector('small') || {}).textContent }, list);
+  wrap.replaceWith(tmp.firstElementChild);
+}
 const CHANGE = {
+  formPhotos: async (el) => {
+    const files = [...el.files]; if (!files.length) return;
+    const name = el.dataset.name, input = $('#sheetform').elements[name];
+    const list = JSON.parse(input.value || '[]');
+    for (const f of files.slice(0, 12 - list.length)) { try { list.push(await uploadPhoto(f)); } catch (e) { fail(e); } }
+    redrawPhotosField(name, list);
+  },
   coPhotos: async (el) => {
     const files = [...el.files]; if (!files.length) return;
     syncCheckout();

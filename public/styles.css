@@ -406,3 +406,14 @@ input.in:focus, select.in:focus, textarea.in:focus { outline: 2px solid color-mi
 .daynav button.calbtn svg.i { width: 17px; height: 17px; }
 @media (max-width: 420px) { .daynav button.calbtn span { display: none; } .daynav button.calbtn { width: 34px; padding: 0; justify-content: center; } }
 a.homebtn { text-decoration: none; color: inherit; }
+
+.taskphotos { display: flex; gap: 8px; overflow-x: auto; margin: 4px 0 10px; padding-bottom: 4px; scrollbar-width: thin; }
+.taskphotos img { width: 150px; height: 150px; object-fit: cover; border-radius: 12px; border: 1px solid var(--line); flex: none; cursor: zoom-in; }
+@media (min-width: 900px) { .taskphotos img { width: 180px; height: 180px; } }
+
+.helpcard h2 { font-size: 20px; margin-bottom: 6px; }
+.helpcard p { margin: 0 0 8px; color: var(--ink-2); }
+.helpcard .lines li { font-size: 15px; color: var(--ink-2); }
+.helpcard .kbadge { width: 46px; height: 46px; border-radius: 13px; }
+.helpcard .kbadge svg.i { width: 24px; height: 24px; }
+details summary::marker { color: var(--accent); }
