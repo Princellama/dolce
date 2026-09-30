@@ -347,3 +347,26 @@ input.in:focus, select.in:focus, textarea.in:focus { outline: 2px solid color-mi
 .pinpad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-width: 300px; margin: 0 auto; }
 .pinpad button { height: 62px; border-radius: 16px; border: 1px solid var(--line); background: var(--surface-2); font-size: 24px; font-weight: 600; cursor: pointer; display: grid; place-items: center; }
 .pinpad button:active { background: var(--accent-soft); }
+
+/* ---------- sign-in doors ---------- */
+.login .box.wide { max-width: 920px; }
+.loginhead { display: flex; flex-direction: column; }
+.loginhead .tag { margin-bottom: 22px; }
+.doors { display: grid; gap: 14px; }
+.door { padding: 20px; }
+.doorhead { display: flex; gap: 14px; align-items: center; margin-bottom: 10px; }
+.doorhead h2 { font-size: 23px; margin-top: 2px; }
+.doorhead .kbadge { width: 48px; height: 48px; border-radius: 14px; }
+.doorhead .kbadge svg.i { width: 26px; height: 26px; }
+.doortext { margin: 0 0 16px; color: var(--ink-2); }
+.homebtn .kbadge { width: 46px; height: 46px; border-radius: 13px; }
+.homebtn .kbadge svg.i { width: 24px; height: 24px; }
+.pinhint { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 600; color: var(--accent-text); background: var(--accent-soft); padding: 5px 10px; border-radius: 999px; flex: none; }
+.pinhint svg.i { width: 15px; height: 15px; }
+.login .features { grid-template-columns: 1fr; }
+@media (min-width: 760px) {
+  .doors { grid-template-columns: 1fr 1fr; align-items: start; }
+  .loginhead { flex-direction: row; gap: 18px; align-items: flex-start; }
+  .loginhead .logo { margin-bottom: 0; }
+  .login .features { grid-template-columns: repeat(3, 1fr); }
+}

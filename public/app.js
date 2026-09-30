@@ -207,17 +207,30 @@ async function render() {
 // ----- login -----
 function viewLogin(query) {
   document.title = 'The Dolce Life';
-  mount(`<div class="login"><div class="box">
-    <div class="logo"><span class="mark">${pawFill}</span></div>
-    <h1>The Dolce Life</h1>
-    <p class="tag">Your house-sitting companion. Everything the pets, plants and house need, one day at a time.</p>
-    ${query.get('expired') ? `<div class="warn" style="margin-bottom:14px">${icon('alert')}<span>That sign-in link has expired. Enter your email for a new one.</span></div>` : ''}
-    <div id="homes"></div>
-    <form class="card pad form" id="loginform">
-      <label class="f"><span>Your email</span><input class="in" type="email" name="email" required autocomplete="email" placeholder="you@example.com"></label>
-      <button class="btn primary block" type="submit">${icon('mail')} Email me a sign-in link</button>
-      <p class="small muted" style="margin:10px 0 0">No password needed. We'll send a link that signs you in.</p>
-    </form>
+  mount(`<div class="login"><div class="box wide">
+    <div class="loginhead">
+      <div class="logo"><span class="mark">${pawFill}</span></div>
+      <div><h1>The Dolce Life</h1>
+      <p class="tag">Your house-sitting companion. Everything the pets, plants and house need, one day at a time.</p></div>
+    </div>
+    ${query.get('expired') ? `<div class="warn" style="margin-bottom:14px">${icon('alert')}<span>That sign-in link has expired. Owners: enter your email for a new one. Sitters: ask the owner for the PIN or a new link.</span></div>` : ''}
+    <div class="doors">
+      <section class="card door">
+        <div class="doorhead"><span class="kbadge k-cat">${icon('key')}</span><div><div class="eyebrow">House sitter</div><h2>Looking after a home?</h2></div></div>
+        <p class="doortext">Tap the home, then enter the PIN the owner gave you.</p>
+        <div id="homes" class="stack"><p class="muted small" style="margin:0">Loading homes…</p></div>
+        <p class="small muted" style="margin:14px 0 0">Got a sign-in link by text or email? Just tap it. That works too.</p>
+      </section>
+      <section class="card door">
+        <div class="doorhead"><span class="kbadge k-dog">${icon('home')}</span><div><div class="eyebrow">Owner</div><h2>Your home</h2></div></div>
+        <p class="doortext">Set up your home, edit the routine and guides, and get the evening report.</p>
+        <form class="form" id="loginform">
+          <label class="f"><span>Your email</span><input class="in" type="email" name="email" required autocomplete="email" placeholder="you@example.com"></label>
+          <button class="btn primary block" type="submit">${icon('mail')} Email me a sign-in link</button>
+          <p class="small muted" style="margin:10px 0 0">No password. We email you a link that signs you in. New here? Same thing: enter your email to get started.</p>
+        </form>
+      </section>
+    </div>
     <div class="features">
       <div>${icon('today')} Today's to-dos, in order, with checkboxes</div>
       <div>${icon('book')} Photo guides for the feeder, the laundry, the stove…</div>
@@ -225,22 +238,25 @@ function viewLogin(query) {
     </div>
   </div></div>`);
   fetch('/api/public-stays').then((r) => r.json()).then((homes) => {
-    if (!Array.isArray(homes) || !homes.length || !$('#homes')) return;
-    $('#homes').innerHTML = `<div class="eyebrow" style="margin-bottom:8px">Homes</div><div class="stack" style="margin-bottom:22px">${homes.map((h) => `
+    if (!$('#homes')) return;
+    if (!Array.isArray(homes) || !homes.length) {
+      $('#homes').innerHTML = `<p class="muted small" style="margin:0">No homes are listed here. Use the sign-in link the owner sent you.</p>`;
+      return;
+    }
+    $('#homes').innerHTML = homes.map((h) => `
       <button class="card homebtn" data-act="pinHome" data-id="${h.id}" data-name="${esc(h.name)}">
-        <span class="kbadge k-dog">${icon('home')}</span>
+        <span class="kbadge k-house">${icon('home')}</span>
         <span class="grow"><b>${esc(h.name)}</b>${h.pet_names ? `<span class="muted small">${esc(h.pet_names)}</span>` : ''}</span>
-        ${icon('key')}
-      </button>`).join('')}</div>
-      <div class="eyebrow" style="margin-bottom:8px">Or sign in with email</div>`;
-  }).catch(() => {});
+        <span class="pinhint">${icon('key')} PIN</span>
+      </button>`).join('');
+  }).catch(() => { if ($('#homes')) $('#homes').innerHTML = ''; });
   $('#loginform').addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = e.target.querySelector('button'); btn.disabled = true;
     try {
       const r = await api('POST', '/api/login', { email: e.target.email.value });
-      e.target.outerHTML = `<div class="card pad"><h2 style="font-size:24px">Check your email</h2><p>We sent a sign-in link to <b>${esc(e.target.email.value)}</b>. Open it on this device.</p>
-        ${r.emailReady ? '' : `<p class="small muted">Email isn't switched on yet, so ask the owner to send you your sign-in link.</p>`}</div>`;
+      e.target.outerHTML = `<div><h3 style="font-size:21px">Check your email</h3><p>We sent a sign-in link to <b>${esc(e.target.email.value)}</b>. Open it on this device.</p>
+        ${r.emailReady ? '' : `<p class="small muted">Email isn't switched on yet. Ask whoever set up the app for your sign-in link.</p>`}</div>`;
     } catch (err) { fail(err); btn.disabled = false; }
   });
 }
