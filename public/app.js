@@ -281,6 +281,25 @@ async function viewStays() {
   </div></div>`);
 }
 
+// ----- add to home screen -----
+let installEvent = null;
+addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvent = e; const b = $('[data-act=install]'); if (b) b.hidden = false; });
+const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isPhone = () => matchMedia('(max-width: 899px)').matches && (('ontouchstart' in window) || navigator.maxTouchPoints > 0);
+function installTip() {
+  let hidden = false; try { hidden = localStorage.getItem('installTip') === 'no'; } catch (e) {}
+  if (hidden || standalone() || !isPhone()) return '';
+  const how = isIOS()
+    ? `In Safari, tap the <b>Share</b> button <span class="shareic">${icon('up')}</span> at the bottom, then <b>Add to Home Screen</b>.`
+    : `Tap the browser menu <b>⋮</b>, then <b>Add to Home screen</b> or <b>Install app</b>.`;
+  return `<div class="card pad installtip"><div class="row" style="align-items:flex-start">
+      <img src="/icon-180.png" alt="" class="appic">
+      <div class="grow"><b>Put Dolce on your Home Screen</b><p class="small" style="margin:4px 0 0;color:var(--ink-2)">${how}</p>
+        <div class="row" style="margin-top:10px;gap:8px"><button class="btn small primary" data-act="install" ${installEvent ? '' : 'hidden'}>${icon('plus')} Install</button><button class="btn small ghost" data-act="installHide">Not now</button></div></div>
+    </div></div>`;
+}
+
 // ----- today -----
 function taskState(t, date, now) {
   const isToday = date === now.date;
@@ -388,6 +407,7 @@ async function viewToday(query) {
       <div class="progress"><div class="bar"><span style="width:${pct}%"></span></div><div class="lbl"><span>${doneN} of ${tasks.length} done</span><span>${pct === 100 && tasks.length ? 'All done. Grazie!' : ''}</span></div></div>
     </div>
     ${notice ? `<div class="notice" style="margin-top:14px">${icon('clock')}<span>${esc(notice)}</span></div>` : ''}
+    <div style="margin-top:14px">${installTip()}</div>
     <div class="mobile-side" style="margin-top:14px"></div>
     ${tasks.length ? timed + dueHtml + anyHtml : `<div class="card empty" style="margin-top:18px"><h3>Nothing on the list</h3><p>${isOwner() ? 'Add to-dos from the Care tab.' : 'Enjoy the quiet.'}</p></div>`}
     ${isOwner() ? `<div style="margin-top:18px"><button class="btn small" data-act="newTask">${icon('plus')} Add a to-do</button></div>` : ''}
@@ -847,6 +867,8 @@ document.addEventListener('keydown', (e) => {
 
 // ---------- actions ----------
 const A = {
+  install: async () => { if (!installEvent) return; installEvent.prompt(); const r = await installEvent.userChoice.catch(() => null); installEvent = null; if (r && r.outcome === 'accepted') { toast('Added to your Home Screen'); const t = $('.installtip'); if (t) t.remove(); } },
+  installHide: () => { try { localStorage.setItem('installTip', 'no'); } catch (e) {} const t = $('.installtip'); if (t) t.remove(); },
   pinHome: (el) => pinSheet(Number(el.dataset.id), el.dataset.name),
   pinKey: (el) => {
     const p = state.pin; if (!p) return;

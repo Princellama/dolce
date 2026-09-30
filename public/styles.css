@@ -370,3 +370,9 @@ input.in:focus, select.in:focus, textarea.in:focus { outline: 2px solid color-mi
   .loginhead .logo { margin-bottom: 0; }
   .login .features { grid-template-columns: repeat(3, 1fr); }
 }
+
+.installtip .appic { width: 48px; height: 48px; border-radius: 12px; flex: none; }
+.installtip b { font-size: 16px; }
+.shareic { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: var(--bg-2); vertical-align: -5px; }
+.shareic svg.i { width: 15px; height: 15px; }
+[hidden] { display: none !important; }
