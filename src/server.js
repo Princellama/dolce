@@ -327,7 +327,7 @@ app.delete(`${S}/updates/:id`, needUser, wrap(loadStay), wrap(async (req, res) =
 const cleanPhoto = (p) => (typeof p === 'string' && /^\/u\/[A-Za-z0-9_-]+\.(jpg|png|webp)$/.test(p) ? p : '');
 const KINDS = {
   sections: { table: 'sections', fields: { kind: 's', title: 's', notes: 's', sort: 'i' } },
-  pets: { table: 'pets', fields: { section_id: 'ref', name: 's', description: 's', photo: 'p', sort: 'i' } },
+  pets: { table: 'pets', fields: { section_id: 'ref', name: 's', location: 's', description: 's', photo: 'p', photos: 'photos', sort: 'i' } },
   tasks: { table: 'tasks', fields: { section_id: 'ref', title: 's', details: 's', warning: 's', time_start: 't', time_end: 't', time_label: 's', every_n: 'i', first_day: 'i', guide_id: 'ref', optional: 'b', photos: 'photos', sort: 'i' } },
   guides: { table: 'guides', fields: { section_id: 'ref', title: 's', intro: 's', sort: 'i' } },
   contacts: { table: 'contacts', fields: { name: 's', role: 's', phone: 's', email: 's', address: 's', notes: 's', emergency: 'b', sort: 'i' } },

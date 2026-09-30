@@ -449,6 +449,20 @@ function placeSide() {
 addEventListener('resize', placeSide);
 
 // ----- care -----
+const itemPhotos = (p) => (p.photos && p.photos.length ? p.photos : p.photo ? [p.photo] : []);
+const itemsLabel = (k) => ({ dog: 'Meet the pets', cat: 'Meet the pets', plants: 'Plants & garden', house: 'Around the house' })[k] || 'Items';
+const addItemLabel = (k) => ({ dog: 'Add a pet', cat: 'Add a pet', plants: 'Add a plant or garden area', house: 'Add something' })[k] || 'Add an item';
+function openItem(id) {
+  const p = B().pets.find((x) => x.id === id); if (!p) return;
+  const sec = B().sections.find((x) => x.id === p.section_id);
+  const ph = itemPhotos(p);
+  openSheet(p.name, `${p.location ? `<div class="itemloc" style="font-size:15px;margin:-6px 0 12px">${icon('pin')}${esc(p.location)}</div>` : ''}
+    ${ph.length ? `<div class="itemgallery">${ph.map((u) => `<img src="${esc(u)}" alt="" data-zoom>`).join('')}</div>` : ''}
+    ${p.description ? `<p style="white-space:pre-line;font-size:16.5px;color:var(--ink-2);margin:14px 0 0">${esc(p.description)}</p>` : ''}
+    ${!ph.length && !p.description ? `<p class="muted">Nothing more written about this yet.</p>` : ''}`,
+    isOwner() ? `<button class="btn" data-act="editPet" data-id="${p.id}">${icon('edit')} Edit</button><span class="grow"></span><button class="btn primary" data-act="closeSheet">Done</button>` : `<span class="grow"></span><button class="btn primary" data-act="closeSheet">Done</button>`);
+}
+
 function viewCare(sectionId) {
   const b = B();
   const sections = b.sections;
@@ -466,12 +480,15 @@ function viewCare(sectionId) {
     <div class="pagehead"><span class="kbadge ${kindCls(sec.kind)}">${icon(kindIcon(sec.kind))}</span><div class="grow"><div class="eyebrow">Care</div><h1>${esc(sec.title)}</h1></div>
       ${O ? `<button class="btn small" data-act="editSection" data-id="${sec.id}">${icon('edit')} Edit section</button>` : ''}</div>
     <div class="segs">${segs}</div>
-    ${pets.length || O ? `<div class="pets">${pets.map((p) => `<div class="card pet">
-        <div class="avatar ${p.photo ? '' : kindCls(sec.kind)}">${p.photo ? `<img src="${esc(p.photo)}" alt="" data-zoom>` : icon(kindIcon(sec.kind))}</div>
-        <div class="grow"><h3>${esc(p.name)}</h3><p>${esc(p.description)}</p>
-        ${O ? `<button class="btn small ghost" style="margin:6px 0 0 -10px" data-act="editPet" data-id="${p.id}">${icon('edit')} Edit</button>` : ''}</div>
-      </div>`).join('')}
-      ${O ? `<button class="card pet" style="cursor:pointer;border-style:dashed;box-shadow:none;background:transparent;align-items:center" data-act="newPet" data-section="${sec.id}"><span class="avatar" style="background:var(--bg-2);color:var(--muted)">${icon('plus')}</span><b>Add ${sec.kind === 'plants' || sec.kind === 'house' ? 'an item' : 'a pet'}</b></button>` : ''}
+    ${pets.length || O ? `<div class="section-title" style="margin-top:6px"><h2>${esc(itemsLabel(sec.kind))}</h2><span class="line"></span></div>
+    <div class="pets">${pets.map((p) => { const ph = itemPhotos(p); return `<button class="card pet itemcard" data-act="openItem" data-id="${p.id}">
+        <div class="avatar ${ph.length ? '' : kindCls(sec.kind)}">${ph.length ? `<img src="${esc(ph[0])}" alt="">` : icon(kindIcon(sec.kind))}</div>
+        <div class="grow"><h3>${esc(p.name)}</h3>
+          ${p.location ? `<div class="itemloc">${icon('pin')}${esc(p.location)}</div>` : ''}
+          ${p.description ? `<p class="clamp">${esc(p.description)}</p>` : ''}
+          ${ph.length > 1 ? `<span class="chip" style="margin-top:6px">${icon('camera')}${ph.length}</span>` : ''}
+        </div></button>`; }).join('')}
+      ${O ? `<button class="card pet" style="cursor:pointer;border-style:dashed;box-shadow:none;background:transparent;align-items:center" data-act="newPet" data-section="${sec.id}"><span class="avatar" style="background:var(--bg-2);color:var(--muted)">${icon('plus')}</span><b>${esc(addItemLabel(sec.kind))}</b></button>` : ''}
     </div>` : ''}
     ${lines(sec.notes).length ? `<div class="section-title"><h2>Good to know</h2><span class="line"></span></div>
       <div class="card pad"><ul class="lines">${lines(sec.notes).map((l) => `<li>${esc(l)}</li>`).join('')}</ul></div>` : ''}
@@ -752,8 +769,8 @@ function viewHelp() {
   const go = (page, label) => `<a class="btn small" href="${stayUrl(page)}">${label} ${icon('right')}</a>`;
   const owner = [
     step('home', 'k-house', '1. Set the basics', `<p>In <b>Settings</b>, fill in the dates you're away and the times the sitter starts and you're back. The dates drive everything: "Day 3 of 19", what's due each day, and when emails start and stop.</p><p>Add your <b>home address</b> too. It shows on Contacts and the Emergency button so the sitter can give it to a vet or 911. It never goes in emails.</p>`, go('settings', 'Open Settings')),
-    step('dog', 'k-dog', '2. Build the routine', `<p>Open <b>Care</b> and pick a section: a pet, Cats, Plants or House. Under <b>Routine</b>, tap <b>Add</b> for each thing that needs doing.</p><ul class="lines"><li><b>Time:</b> a time or a window ("5:30–6 PM"). Leave it empty for "anytime".</li><li><b>How often:</b> every day, every 2 or 3 days, or weekly. "First time on day #" sets which day it starts.</li><li><b>Warning:</b> anything they must not miss shows in orange ("Hold her up at the curb").</li><li><b>Photos:</b> add pictures right on the to-do: which plants to water, where the food is.</li><li><b>How-to guide:</b> link a step-by-step guide so it's one tap away.</li></ul>`, go('care', 'Open Care')),
-    step('camera', 'k-cat', '3. Add photos', `<p>Sitters do better with pictures. You can add photos in three places:</p><ul class="lines"><li><b>On a to-do:</b> open it on Today and tap <b>Add photo</b>, or add them while editing it.</li><li><b>In a guide:</b> one photo per step: the dial on the washer, the lid on the feeder.</li><li><b>On a pet:</b> so the sitter knows which cat is which.</li></ul><p class="small muted">Take them with your phone right in the app. They're resized automatically.</p>`),
+    step('dog', 'k-dog', '2. Build the routine', `<p>Open <b>Care</b> and pick a section: a pet, Cats, Plants or House. At the top, add what's there: each pet, each plant or garden area, or things around the house like the pool or AC, with where it is, a description and photos. Under <b>Routine</b>, tap <b>Add</b> for each thing that needs doing.</p><ul class="lines"><li><b>Time:</b> a time or a window ("5:30–6 PM"). Leave it empty for "anytime".</li><li><b>How often:</b> every day, every 2 or 3 days, or weekly. "First time on day #" sets which day it starts.</li><li><b>Warning:</b> anything they must not miss shows in orange ("Hold her up at the curb").</li><li><b>Photos:</b> add pictures right on the to-do: which plants to water, where the food is.</li><li><b>How-to guide:</b> link a step-by-step guide so it's one tap away.</li></ul>`, go('care', 'Open Care')),
+    step('camera', 'k-cat', '3. Add photos', `<p>Sitters do better with pictures. You can add photos in three places:</p><ul class="lines"><li><b>On a to-do:</b> open it on Today and tap <b>Add photo</b>, or add them while editing it.</li><li><b>In a guide:</b> one photo per step: the dial on the washer, the lid on the feeder.</li><li><b>On a pet, plant or thing</b> in Care: so the sitter knows which cat is which, which plants are the orchids, where the pool pump is.</li></ul><p class="small muted">Take them with your phone right in the app. They're resized automatically.</p>`),
     step('book', 'k-plants', '4. Write the house guides', `<p><b>Guides</b> is your house manual, kept out of the daily list so Today stays simple. Each guide is a few short steps, each with an optional photo. Mark a step <b>Important</b> to highlight it.</p><p>The <b>Still to fill in</b> list suggests the usual ones (Wi-Fi, stove, trash day, breaker box, hurricane plan). Only you see those until they have steps. Delete any that don't apply.</p>`, go('guides', 'Open Guides')),
     step('phone', 'k-house', '5. Contacts and emergencies', `<p>Add the people the sitter might need: vets, neighbors, the pool guy, the plumber, you. Tick <b>Emergency contact</b> for vets and anyone urgent. They show first and on the red <b>Emergency</b> button at the top of every screen.</p>`, go('contacts', 'Open Contacts')),
     step('key', 'k-cat', '6. Invite your sitter', `<p>In <b>Settings → People</b>, tap <b>Add</b> and enter your sitter's name, email and phone as a <b>Sitter</b>. They get the morning email. Add a partner or family member as an <b>Owner</b> to share editing and the reports.</p><p>Then choose how they sign in:</p><ul class="lines"><li><b>PIN (easiest):</b> in Settings, turn on <b>Show this home on the sign-in screen</b> and set a PIN. Your sitter taps your home and enters it. A PIN only lets someone check things off and post updates. It can never change your setup.</li><li><b>Sign-in link:</b> tap <b>Sign-in link</b> next to their name and text it to them.</li></ul>`, go('settings', 'Add your sitter')),
@@ -1042,6 +1059,7 @@ document.addEventListener('keydown', (e) => {
 
 // ---------- actions ----------
 const A = {
+  openItem: (el) => openItem(Number(el.dataset.id)),
   formPhotoDel: (el) => {
     const name = el.dataset.name, input = $('#sheetform').elements[name];
     const list = JSON.parse(input.value || '[]'); list.splice(Number(el.dataset.i), 1);
@@ -1270,10 +1288,18 @@ const CHANGE = {
 
 function petForm(p) {
   const isNew = !p.id;
+  const sec = B().sections.find((x) => x.id === p.section_id);
+  const kind = sec ? sec.kind : '';
+  const ph = { dog: 'Looks like… likes… careful with…', cat: 'Looks like… likes… where they hide…', plants: 'What it is, how much water, anything to avoid…', house: 'What it is, how it works, who to call if it breaks…' }[kind] || 'What it is and anything to know';
+  const locPh = { dog: 'Crate in the living room', cat: 'Top of the cat tree', plants: 'Flower bed to the left of the driveway', house: 'Garage, left wall' }[kind] || 'Where to find it';
   openForm({
-    title: isNew ? 'Add' : `Edit ${p.name}`, values: p,
-    fields: [{ name: 'name', label: 'Name', required: true }, { name: 'section_id', label: 'Section', type: 'select', options: sectionOpts() }, { name: 'description', label: 'Description', type: 'textarea', placeholder: 'Looks like… likes… careful with…' }, { name: 'photo', label: 'Photo', type: 'photo' }],
-    onSubmit: async (v) => { if (isNew) await api('POST', `/api/stays/${B().stay.id}/pets`, v); else await api('PUT', `/api/stays/${B().stay.id}/pets/${p.id}`, v); toast('Saved'); await refresh(); },
+    title: isNew ? addItemLabel(kind) : `Edit ${p.name}`, values: { ...p, photos: itemPhotos(p) },
+    fields: [{ name: 'name', label: 'Name', required: true, placeholder: kind === 'plants' ? 'Orchids, hedge, vegetable bed…' : kind === 'house' ? 'Pool, AC unit, car…' : '' },
+      { name: 'location', label: 'Where (optional)', placeholder: locPh },
+      { name: 'section_id', label: 'Section', type: 'select', options: sectionOpts() },
+      { name: 'description', label: 'Description', type: 'textarea', placeholder: ph },
+      { name: 'photos', label: 'Photos', type: 'photos', hint: 'The first photo is the one shown on the card.' }],
+    onSubmit: async (v) => { v.photo = (v.photos || [])[0] || ''; if (isNew) await api('POST', `/api/stays/${B().stay.id}/pets`, v); else await api('PUT', `/api/stays/${B().stay.id}/pets/${p.id}`, v); toast('Saved'); await refresh(); },
     onDelete: isNew ? null : async () => { await api('DELETE', `/api/stays/${B().stay.id}/pets/${p.id}`); await refresh(); },
   });
 }

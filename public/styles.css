@@ -417,3 +417,12 @@ a.homebtn { text-decoration: none; color: inherit; }
 .helpcard .kbadge { width: 46px; height: 46px; border-radius: 13px; }
 .helpcard .kbadge svg.i { width: 24px; height: 24px; }
 details summary::marker { color: var(--accent); }
+
+.itemcard { text-align: left; cursor: pointer; font: inherit; color: inherit; width: 100%; }
+.itemcard:hover { border-color: var(--line-2); }
+.itemloc { display: flex; align-items: center; gap: 5px; font-size: 13.5px; color: var(--accent-text); font-weight: 500; margin-top: 3px; }
+.itemloc svg.i { width: 15px; height: 15px; }
+.clamp { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.itemgallery { display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 4px; }
+.itemgallery img { height: 260px; width: auto; max-width: 88%; object-fit: cover; border-radius: 14px; scroll-snap-align: start; flex: none; cursor: zoom-in; }
+.itemgallery img:only-child { max-width: 100%; width: 100%; }

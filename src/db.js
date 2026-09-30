@@ -148,6 +148,8 @@ CREATE TABLE IF NOT EXISTS email_log (
 const UPGRADES = `
 ALTER TABLE stays ADD COLUMN IF NOT EXISTS is_public BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE stays ADD COLUMN IF NOT EXISTS pin_hash TEXT NOT NULL DEFAULT '';
+ALTER TABLE pets ADD COLUMN IF NOT EXISTS photos JSONB NOT NULL DEFAULT '[]';
+ALTER TABLE pets ADD COLUMN IF NOT EXISTS location TEXT NOT NULL DEFAULT '';
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS photos JSONB NOT NULL DEFAULT '[]';
 ALTER TABLE updates ADD COLUMN IF NOT EXISTS extra JSONB NOT NULL DEFAULT '{}';
 ALTER TABLE stays ALTER COLUMN report_time SET DEFAULT '21:00';
@@ -190,6 +192,25 @@ const PATCHES = [
     // The evening report is now the safety net for a missed check-out, so it goes out at 9 PM.
     key: '2026-09-29-report-9pm',
     sql: `UPDATE stays SET report_time = '21:00' WHERE report_time = '20:00'`,
+  },
+  {
+    // Items in Care are no longer only pets: move single photos into the photo list.
+    key: '2026-09-29-items-photos',
+    sql: `UPDATE pets SET photos = jsonb_build_array(photo) WHERE photo <> '' AND photos = '[]'::jsonb`,
+  },
+  {
+    key: '2026-09-29-milli-plant-areas',
+    sql: `INSERT INTO pets (stay_id, section_id, name, location, description, sort)
+      SELECT s.id, sec.id, v.name, v.location, v.description, v.sort
+        FROM stays s JOIN sections sec ON sec.stay_id = s.id AND sec.kind = 'plants'
+        CROSS JOIN (VALUES
+          ('Hedge plants', 'Along our side', 'Water these first, with the spigot just over a half turn.', 1),
+          ('Plants by the door', 'By the front door', 'Water with the hedge plants.', 2),
+          ('Flower bed', 'To the left', 'Pull out 7 rings of hose to reach it. About 15 seconds per plant. Bring the hose back so the car tires don''t catch it.', 3),
+          ('Plants on our side', 'Our side of the yard', 'Finish here after the flower bed, then turn off the spigots and roll the hose up completely.', 4)
+        ) AS v(name, location, description, sort)
+       WHERE s.name = 'Milli & Reggie''s'
+         AND NOT EXISTS (SELECT 1 FROM pets p WHERE p.section_id = sec.id)`,
   },
   {
     key: '2026-09-29-milli-owner',
