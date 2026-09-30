@@ -242,6 +242,7 @@ app.get(`${S}/day`, needUser, wrap(loadStay), wrap(async (req, res) => {
 app.post(`${S}/complete`, needUser, wrap(loadStay), wrap(async (req, res) => {
   const task = await one('SELECT id FROM tasks WHERE id=$1 AND stay_id=$2', [req.body.task_id, req.stay.id]);
   if (!task || !/^\d{4}-\d{2}-\d{2}$/.test(req.body.date || '')) return res.status(400).json({ error: 'Bad request.' });
+  if (req.body.done && req.body.date > localNow(req.stay.tz).date) return res.status(400).json({ error: 'You can check this off on the day.' });
   if (req.body.done) await q(`INSERT INTO completions (task_id,day,user_id) VALUES ($1,$2,$3) ON CONFLICT (task_id,day) DO UPDATE SET user_id=$3, done_at=now()`, [task.id, req.body.date, req.user.id]);
   else await q('DELETE FROM completions WHERE task_id=$1 AND day=$2', [task.id, req.body.date]);
   res.json({ ok: true });

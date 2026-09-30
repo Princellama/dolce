@@ -870,6 +870,7 @@ const A = {
   check: async (el, e) => {
     e.stopPropagation();
     const id = Number(el.dataset.id), t = state.day.tasks.find((x) => x.id === id);
+    if (!t.done && state.dayDate > localNow(B().stay.tz).date) return toast(`That's a future day. You can check it off on ${shortDate(state.dayDate)}.`);
     t.done = !t.done;
     t.done_at = t.done ? new Date().toISOString() : null; t.done_by_name = t.done ? state.me.name : null;
     const y = window.scrollY;
